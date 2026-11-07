@@ -63,7 +63,13 @@ curl -fsSL https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe
 
 (After this branch is merged, replace `vibe/mistral-playground-1d8990` with the default branch name.)
 
-To update an existing checkout instead: `curl -fsSL <same-url> | bash -s -- --update --run` — or, from inside a clone, `./install.sh --update --run`.
+To update an existing checkout, run the same command with `--update` — it pulls the latest code and re-downloads/re-runs the latest install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe/mistral-playground-1d8990/install.sh | bash -s -- --update --run
+```
+
+(From inside a clone, `./install.sh --update --run` does the same: pulls, then re-runs the newest script from the remote.)
 
 Or step by step:
 
