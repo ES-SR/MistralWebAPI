@@ -45,6 +45,11 @@ function applySettings(): void {
   root.style.setProperty('--text-field-basis', `${settings.textFieldBasis}px`);
   if (settings.responseMaxVh > 0) root.style.setProperty('--response-max-vh', `${settings.responseMaxVh}vh`);
   else root.style.removeProperty('--response-max-vh');
+  root.style.setProperty('--border-width', `${settings.borderWidth}px`);
+  root.style.setProperty('--sidebar-w', `${settings.sidebarWidth}px`);
+  root.style.setProperty('--topbar-h', `${settings.topbarHeight}px`);
+  root.style.setProperty('--panel-pad', `${settings.panelPad}px`);
+  root.style.setProperty('--field-gap', `${settings.fieldGap}px`);
   savePrefs(settings);
 }
 
@@ -69,6 +74,11 @@ function syncAppearanceForm(): void {
   ($('#set-select-field-width') as HTMLInputElement).value = String(settings.selectFieldWidth);
   ($('#set-text-field-basis') as HTMLInputElement).value = String(settings.textFieldBasis);
   ($('#set-response-max-vh') as HTMLInputElement).value = String(settings.responseMaxVh);
+  ($('#set-border-width') as HTMLInputElement).value = String(settings.borderWidth);
+  ($('#set-sidebar-w') as HTMLInputElement).value = String(settings.sidebarWidth);
+  ($('#set-topbar-h') as HTMLInputElement).value = String(settings.topbarHeight);
+  ($('#set-panel-pad') as HTMLInputElement).value = String(settings.panelPad);
+  ($('#set-field-gap') as HTMLInputElement).value = String(settings.fieldGap);
   ($('#set-default-model') as HTMLSelectElement).value = settings.defaultModel;
   ($('#set-default-temperature') as HTMLInputElement).value = settings.defaultTemperature;
   ($('#set-default-max-tokens') as HTMLInputElement).value = settings.defaultMaxTokens;
@@ -381,6 +391,18 @@ function showView(view: 'api' | 'settings'): void {
   $('#view-api').hidden = view !== 'api';
   $('#view-settings').hidden = view !== 'settings';
   $('#nav-settings').classList.toggle('active', view === 'settings');
+  if (view === 'api') {
+    $('#nav-set-appearance').classList.remove('active');
+    $('#nav-set-api').classList.remove('active');
+  }
+}
+
+function showSettingsSection(sec: 'appearance' | 'api'): void {
+  showView('settings');
+  $('#section-appearance').hidden = sec !== 'appearance';
+  $('#section-api').hidden = sec !== 'api';
+  $('#nav-set-appearance').classList.toggle('active', sec === 'appearance');
+  $('#nav-set-api').classList.toggle('active', sec === 'api');
 }
 
 async function loadModelList(): Promise<void> {
@@ -431,9 +453,11 @@ async function updateTokenRange(modelId: string): Promise<void> {
 }
 
 function wireSettings(): void {
-  $('#nav-settings').addEventListener('click', () => showView('settings'));
+  $('#nav-settings').addEventListener('click', () => showSettingsSection('appearance'));
+  $('#nav-set-appearance').addEventListener('click', () => showSettingsSection('appearance'));
+  $('#nav-set-api').addEventListener('click', () => showSettingsSection('api'));
   $('#banner-open-settings').addEventListener('click', () => {
-    showView('settings');
+    showSettingsSection('api');
     $('#row-key').scrollIntoView({ block: 'center' });
   });
 
@@ -487,6 +511,11 @@ function wireSettings(): void {
     ['#set-select-field-width', 'selectFieldWidth'],
     ['#set-text-field-basis', 'textFieldBasis'],
     ['#set-response-max-vh', 'responseMaxVh'],
+    ['#set-border-width', 'borderWidth'],
+    ['#set-sidebar-w', 'sidebarWidth'],
+    ['#set-topbar-h', 'topbarHeight'],
+    ['#set-panel-pad', 'panelPad'],
+    ['#set-field-gap', 'fieldGap'],
   ];
   for (const [sel, key] of numberSettings) {
     $(sel).addEventListener('input', (e) => {
@@ -558,6 +587,15 @@ function wireSettings(): void {
     settings.fontFamily = d.fontFamily;
     settings.fontSize = d.fontSize;
     settings.radius = d.radius;
+    settings.numFieldWidth = d.numFieldWidth;
+    settings.selectFieldWidth = d.selectFieldWidth;
+    settings.textFieldBasis = d.textFieldBasis;
+    settings.responseMaxVh = d.responseMaxVh;
+    settings.borderWidth = d.borderWidth;
+    settings.sidebarWidth = d.sidebarWidth;
+    settings.topbarHeight = d.topbarHeight;
+    settings.panelPad = d.panelPad;
+    settings.fieldGap = d.fieldGap;
     applySettings();
     syncAppearanceForm();
   });

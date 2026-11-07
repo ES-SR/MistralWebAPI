@@ -48,4 +48,9 @@ export interface AppSettings {
   selectFieldWidth: number;
   textFieldBasis: number;
   responseMaxVh: number;
+  borderWidth: number;
+  sidebarWidth: number;
+  topbarHeight: number;
+  panelPad: number;
+  fieldGap: number;
 }

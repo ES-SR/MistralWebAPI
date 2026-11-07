@@ -24,8 +24,10 @@
         <nav id="menu">
           <button id="nav-settings" class="menu-item nav-settings" type="button">
             <span class="menu-label">⚙ Settings</span>
-            <span class="menu-path">appearance &amp; API preferences</span>
+            <span class="menu-path">preferences</span>
           </button>
+          <button id="nav-set-appearance" class="menu-item sub" type="button"><span class="menu-label">Appearance</span></button>
+          <button id="nav-set-api" class="menu-item sub" type="button"><span class="menu-label">API</span></button>
           <div class="sidebar-hint">Select an API operation</div>
           <div id="menu-groups"></div>
         </nav>
@@ -52,7 +54,7 @@
         <section id="view-settings" hidden>
           <h2 class="settings-title">Settings</h2>
 
-          <fieldset class="settings-section">
+          <fieldset class="settings-section" id="section-appearance">
             <legend>Appearance</legend>
             <div class="setting-row">
               <label for="set-theme">Theme</label>
@@ -120,9 +122,41 @@
               <label for="set-response-max-vh">Max response height (vh, 0 = no cap)</label>
               <input id="set-response-max-vh" type="number" step="1" min="0" />
             </div>
+            <div class="setting-row">
+              <label for="set-border-width">Border width (px)</label>
+              <input id="set-border-width" type="number" step="1" min="0" />
+            </div>
+            <div class="setting-row">
+              <label for="set-sidebar-w">Sidebar width (px)</label>
+              <input id="set-sidebar-w" type="number" step="1" min="120" />
+            </div>
+            <div class="setting-row">
+              <label for="set-topbar-h">Top bar height (px)</label>
+              <input id="set-topbar-h" type="number" step="1" min="36" />
+            </div>
+            <div class="setting-row">
+              <label for="set-panel-pad">Panel padding (px)</label>
+              <input id="set-panel-pad" type="number" step="1" min="0" />
+            </div>
+            <div class="setting-row">
+              <label for="set-field-gap">Field spacing (px)</label>
+              <input id="set-field-gap" type="number" step="1" min="0" />
+            </div>
+            <div class="preview" id="style-preview">
+              <h3 class="preview-title">Preview</h3>
+              <p>Body text with <code>inline code</code> and a <span class="badge ok">status badge</span>.</p>
+              <p class="hint">Muted hint text scales with the base text size.</p>
+              <div class="preview-actions">
+                <button class="btn-primary" type="button">Primary</button>
+                <button class="btn-secondary" type="button">Secondary</button>
+                <input type="text" placeholder="Text input…" />
+                <select><option>Select…</option></select>
+              </div>
+            </div>
+            <button id="settings-reset" class="btn-secondary" type="button">Reset appearance to defaults</button>
           </fieldset>
 
-          <fieldset class="settings-section">
+          <fieldset class="settings-section" id="section-api" hidden>
             <legend>API</legend>
             <div class="security-note" id="security-note">
               <strong>Security &amp; privacy.</strong>
@@ -180,8 +214,6 @@
               <span class="hint" id="max-tokens-hint">Upper bound set from the selected model's context length.</span>
             </div>
           </fieldset>
-
-          <button id="settings-reset" class="btn-secondary" type="button">Reset appearance to defaults</button>
         </section>
       </main>
     </div>
