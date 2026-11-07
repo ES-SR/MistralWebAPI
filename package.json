@@ -1,0 +1,24 @@
+{
+  "name": "mistral-api-playground",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal no-framework web UI for the Mistral API — calls are made directly from the browser with the official TypeScript SDK; the server only serves the static interface",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "sass src/client/styles.scss public/styles.css --no-source-map && tsc -p tsconfig.client.json && esbuild src/client/app.ts --bundle --format=esm --outfile=public/js/app.js",
+    "typecheck": "tsc -p tsconfig.client.json",
+    "start": "node server.ts",
+    "dev": "npm run build && npm start"
+  },
+  "dependencies": {
+    "@mistralai/mistralai": "^1.15.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "sass": "^1.108.1",
+    "typescript": "^5.9.3"
+  }
+}
