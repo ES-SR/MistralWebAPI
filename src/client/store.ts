@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   fontSize: 15,
   radius: 10,
   defaultModel: '',
-  defaultTemperature: '0',
+  defaultTemperature: '',
   defaultMaxTokens: '0',
   enableSecretFields: false,
   persistKey: false,

@@ -40,12 +40,12 @@
           <div id="form-panel" class="panel">
             <p class="empty-hint">Choose an operation from the menu to load its form.</p>
           </div>
-          <div id="response-panel" class="panel" hidden>
+          <div id="response-panel" class="panel">
             <div class="response-head">
               <h3>Response</h3>
               <span id="response-status" class="badge"></span>
             </div>
-            <pre id="response"></pre>
+            <pre id="response" class="placeholder">Responses appear here.</pre>
           </div>
         </section>
 
@@ -98,11 +98,11 @@
             </div>
             <div class="setting-row">
               <label for="set-font-size">Base text size (px)</label>
-              <input id="set-font-size" type="number" min="12" max="22" step="1" />
+              <input id="set-font-size" type="number" step="1" />
             </div>
             <div class="setting-row">
               <label for="set-radius">Corner radius (px)</label>
-              <input id="set-radius" type="number" min="0" max="24" step="1" />
+              <input id="set-radius" type="number" step="1" />
             </div>
           </fieldset>
 

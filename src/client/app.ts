@@ -196,12 +196,16 @@ function renderMenu(): void {
     groups.get(op.group)!.push(op);
   }
   for (const [group, ops] of groups) {
-    const det = document.createElement('details');
-    det.className = 'menu-group';
-    const sum = document.createElement('summary');
-    sum.textContent = group;
-    det.appendChild(sum);
+    const groupUl = document.createElement('ul');
+    groupUl.className = 'menu-group collapsed';
+    const headerLi = document.createElement('li');
+    headerLi.className = 'menu-group-header';
+    headerLi.textContent = group;
+    headerLi.addEventListener('click', () => groupUl.classList.toggle('collapsed'));
+    groupUl.appendChild(headerLi);
     for (const op of ops) {
+      const li = document.createElement('li');
+      li.className = 'menu-entry';
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'menu-item' + (op.id === currentOp?.id ? ' active' : '');
@@ -215,9 +219,10 @@ function renderMenu(): void {
       btn.appendChild(title);
       btn.appendChild(path);
       btn.addEventListener('click', () => selectOp(op.id));
-      det.appendChild(btn);
+      li.appendChild(btn);
+      groupUl.appendChild(li);
     }
-    menu.appendChild(det);
+    menu.appendChild(groupUl);
   }
 }
 
@@ -265,9 +270,11 @@ function renderForm(op: Operation): void {
   });
   panel.appendChild(form);
 
-  $('#response-panel').hidden = true;
-  $('#response').textContent = '';
+  const out = $('#response');
+  out.textContent = 'Responses appear here.';
+  out.classList.add('placeholder');
   $('#response-status').textContent = '';
+  $('#response-status').className = 'badge';
 }
 
 function selectOp(id: string): void {
@@ -315,8 +322,8 @@ function setStatus(text: string, ok: boolean | null): void {
 }
 
 async function send(op: Operation, form: HTMLFormElement): Promise<void> {
-  $('#response-panel').hidden = false;
   const out = $('#response');
+  out.classList.remove('placeholder');
   let params: Record<string, any>;
   try {
     params = collectParams(op, form);
@@ -451,13 +458,13 @@ function wireSettings(): void {
   $('#set-font-size').addEventListener('input', (e) => {
     const v = Number((e.target as HTMLInputElement).value);
     if (Number.isNaN(v)) return;
-    settings.fontSize = Math.min(22, Math.max(12, v));
+    settings.fontSize = v;
     applySettings();
   });
   $('#set-radius').addEventListener('input', (e) => {
     const v = Number((e.target as HTMLInputElement).value);
     if (Number.isNaN(v)) return;
-    settings.radius = Math.min(24, Math.max(0, v));
+    settings.radius = v;
     applySettings();
   });
 
