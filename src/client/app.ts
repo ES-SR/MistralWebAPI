@@ -168,6 +168,7 @@ function buildInput(field: Field): HTMLElement {
     if (def !== undefined) n.value = String(def);
     if (field.placeholder) n.placeholder = field.placeholder;
     input = n;
+    wrap.classList.add('field-inline');
   } else {
     const s = document.createElement('input');
     s.type = 'text';

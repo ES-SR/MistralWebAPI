@@ -302,6 +302,24 @@ body {
   }
 }
 
+.field-row.field-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 20px 14px 0;
+  vertical-align: top;
+
+  label {
+    margin-bottom: 0;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  input {
+    width: 110px;
+  }
+}
+
 .form-actions {
   margin-top: 18px;
 }
@@ -407,6 +425,11 @@ body {
       border-radius: var(--radius);
       padding: 7px 10px;
       min-width: 240px;
+    }
+
+    input[type="number"] {
+      min-width: 0;
+      width: 110px;
     }
 
     input[type="color"] {
