@@ -199,3 +199,8 @@ export async function listModelIds(apiKey: string): Promise<string[]> {
   const models = await c.models.list();
   return ((models as any)?.data ?? []).map((m: any) => m.id).filter(Boolean);
 }
+
+export async function getModel(apiKey: string, modelId: string): Promise<any> {
+  const c = new Mistral({ apiKey });
+  return await c.models.retrieve({ modelId });
+}

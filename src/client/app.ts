@@ -1,6 +1,6 @@
 import type { AppSettings, Field, Operation, ThemeColors } from '../shared/types.js';
 import { OPERATIONS } from '../shared/operations.js';
-import { execute, listModelIds } from './executor.js';
+import { execute, listModelIds, getModel } from './executor.js';
 import { DEFAULT_SETTINGS, loadPrefs, savePrefs, getKey, hasKey, setKey, clearKey, migrateKey } from './store.js';
 
 const PALETTES: Record<'dark' | 'light', ThemeColors> = {
@@ -58,11 +58,9 @@ function syncAppearanceForm(): void {
   if (fontKey === 'custom') custom.value = settings.fontFamily;
   const fs = $('#set-font-size') as HTMLInputElement;
   fs.value = String(settings.fontSize);
-  $('#set-font-size-val').textContent = `${settings.fontSize}px`;
   const r = $('#set-radius') as HTMLInputElement;
   r.value = String(settings.radius);
-  $('#set-radius-val').textContent = `${settings.radius}px`;
-  ($('#set-default-model') as HTMLInputElement).value = settings.defaultModel;
+  ($('#set-default-model') as HTMLSelectElement).value = settings.defaultModel;
   ($('#set-default-temperature') as HTMLInputElement).value = settings.defaultTemperature;
   ($('#set-default-max-tokens') as HTMLInputElement).value = settings.defaultMaxTokens;
   const secrets = $('#set-enable-secrets') as HTMLInputElement;
@@ -190,7 +188,7 @@ function buildInput(field: Field): HTMLElement {
 }
 
 function renderMenu(): void {
-  const menu = $('#menu');
+  const menu = $('#menu-groups');
   menu.innerHTML = '';
   const groups = new Map<string, Operation[]>();
   for (const op of operations) {
@@ -198,9 +196,11 @@ function renderMenu(): void {
     groups.get(op.group)!.push(op);
   }
   for (const [group, ops] of groups) {
-    const h = document.createElement('h3');
-    h.textContent = group;
-    menu.appendChild(h);
+    const det = document.createElement('details');
+    det.className = 'menu-group';
+    const sum = document.createElement('summary');
+    sum.textContent = group;
+    det.appendChild(sum);
     for (const op of ops) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -215,8 +215,9 @@ function renderMenu(): void {
       btn.appendChild(title);
       btn.appendChild(path);
       btn.addEventListener('click', () => selectOp(op.id));
-      menu.appendChild(btn);
+      det.appendChild(btn);
     }
+    menu.appendChild(det);
   }
 }
 
@@ -357,9 +358,7 @@ async function send(op: Operation, form: HTMLFormElement): Promise<void> {
 function showView(view: 'api' | 'settings'): void {
   $('#view-api').hidden = view !== 'api';
   $('#view-settings').hidden = view !== 'settings';
-  $('#nav-api').classList.toggle('active', view === 'api');
   $('#nav-settings').classList.toggle('active', view === 'settings');
-  $('#sidebar').classList.toggle('hidden', view !== 'api');
 }
 
 async function loadModelList(): Promise<void> {
@@ -367,20 +366,49 @@ async function loadModelList(): Promise<void> {
   if (!key) return;
   try {
     const ids = await listModelIds(key);
-    const list = $('#model-list');
-    list.innerHTML = '';
+    const sel = $('#set-default-model') as HTMLSelectElement;
+    sel.innerHTML = '<option value="">— none —</option>';
     for (const id of ids) {
       const opt = document.createElement('option');
       opt.value = id;
-      list.appendChild(opt);
+      opt.textContent = id;
+      sel.appendChild(opt);
+    }
+    sel.value = settings.defaultModel;
+    void updateTokenRange(sel.value);
+  } catch {
+    /* model list needs a valid key */
+  }
+}
+
+async function updateTokenRange(modelId: string): Promise<void> {
+  const input = $('#set-default-max-tokens') as HTMLInputElement;
+  const hint = $('#max-tokens-hint');
+  if (!modelId) {
+    input.removeAttribute('max');
+    hint.textContent = "Upper bound set from the selected model's context length.";
+    return;
+  }
+  const key = getKey();
+  if (!key) return;
+  try {
+    const m = (await getModel(key, modelId)) as any;
+    const max = m?.maxContextLength;
+    if (typeof max === 'number' && max > 0) {
+      input.max = String(max);
+      hint.textContent = `Valid range for ${modelId}: 0–${max} (model context length).`;
+      if (Number(input.value) > max) {
+        input.value = String(max);
+        settings.defaultMaxTokens = String(max);
+        savePrefs(settings);
+      }
     }
   } catch {
-    /* model suggestions need a valid key */
+    /* model lookup failed — leave the range unbounded */
   }
 }
 
 function wireSettings(): void {
-  $('#nav-api').addEventListener('click', () => showView('api'));
   $('#nav-settings').addEventListener('click', () => showView('settings'));
   $('#banner-open-settings').addEventListener('click', () => {
     showView('settings');
@@ -421,13 +449,15 @@ function wireSettings(): void {
     applySettings();
   });
   $('#set-font-size').addEventListener('input', (e) => {
-    settings.fontSize = Number((e.target as HTMLInputElement).value);
-    $('#set-font-size-val').textContent = `${settings.fontSize}px`;
+    const v = Number((e.target as HTMLInputElement).value);
+    if (Number.isNaN(v)) return;
+    settings.fontSize = Math.min(22, Math.max(12, v));
     applySettings();
   });
   $('#set-radius').addEventListener('input', (e) => {
-    settings.radius = Number((e.target as HTMLInputElement).value);
-    $('#set-radius-val').textContent = `${settings.radius}px`;
+    const v = Number((e.target as HTMLInputElement).value);
+    if (Number.isNaN(v)) return;
+    settings.radius = Math.min(24, Math.max(0, v));
     applySettings();
   });
 
@@ -470,9 +500,11 @@ function wireSettings(): void {
     if (currentOp) renderForm(currentOp);
   });
 
-  $('#set-default-model').addEventListener('input', (e) => {
-    settings.defaultModel = (e.target as HTMLInputElement).value.trim();
+  $('#set-default-model').addEventListener('change', (e) => {
+    settings.defaultModel = (e.target as HTMLSelectElement).value;
     savePrefs(settings);
+    void updateTokenRange(settings.defaultModel);
+    if (currentOp) renderForm(currentOp);
   });
   $('#set-default-temperature').addEventListener('input', (e) => {
     settings.defaultTemperature = (e.target as HTMLInputElement).value;

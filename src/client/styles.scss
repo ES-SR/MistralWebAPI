@@ -48,30 +48,6 @@ body {
     letter-spacing: 0.2px;
   }
 
-  .topnav {
-    display: flex;
-    gap: 8px;
-  }
-
-  .nav-btn {
-    font: inherit;
-    color: var(--color-muted);
-    background: none;
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    padding: 6px 14px;
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-text);
-    }
-
-    &.active {
-      color: var(--color-primary);
-      border-color: var(--color-border);
-      background: var(--color-surface-alt);
-    }
-  }
 }
 
 .layout {
@@ -88,8 +64,9 @@ body {
   border-right: 1px solid var(--color-border);
   padding: 12px;
 
-  &.hidden {
-    display: none;
+  .nav-settings {
+    margin-bottom: 6px;
+    border: 1px solid var(--color-border);
   }
 
   .sidebar-hint {
@@ -98,12 +75,34 @@ body {
     padding: 4px 10px 10px;
   }
 
-  h3 {
-    margin: 14px 10px 6px;
-    font-size: 0.78em;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-muted);
+  .menu-group {
+    margin-top: 8px;
+
+    summary {
+      cursor: pointer;
+      padding: 5px 10px;
+      font-size: 0.78em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-muted);
+      border-radius: var(--radius);
+      user-select: none;
+
+      &::marker {
+        color: var(--color-primary);
+      }
+
+      &:hover {
+        color: var(--color-text);
+        background: var(--color-surface-alt);
+      }
+    }
+
+    .menu-item {
+      margin-left: 8px;
+      width: calc(100% - 8px);
+    }
   }
 
   .menu-item {
@@ -406,21 +405,10 @@ body {
       cursor: pointer;
     }
 
-    input[type="range"] {
-      accent-color: var(--color-primary);
-      width: 180px;
-    }
-
     input[type="checkbox"] {
       width: 18px;
       height: 18px;
       accent-color: var(--color-primary);
-    }
-
-    .value-tag {
-      font-family: ui-monospace, Menlo, Consolas, monospace;
-      font-size: 0.85em;
-      color: var(--color-muted);
     }
 
     .hint {

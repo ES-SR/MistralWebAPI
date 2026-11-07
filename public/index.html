@@ -17,16 +17,18 @@
 
     <header class="topbar">
       <div class="brand">⚡ Mistral API Playground</div>
-      <nav class="topnav">
-        <button id="nav-api" class="nav-btn active" type="button">API</button>
-        <button id="nav-settings" class="nav-btn" type="button">Settings</button>
-      </nav>
     </header>
 
     <div class="layout">
       <aside id="sidebar">
-        <div class="sidebar-hint">Select an API operation</div>
-        <nav id="menu"></nav>
+        <nav id="menu">
+          <button id="nav-settings" class="menu-item nav-settings" type="button">
+            <span class="menu-label">⚙ Settings</span>
+            <span class="menu-path">appearance &amp; API preferences</span>
+          </button>
+          <div class="sidebar-hint">Select an API operation</div>
+          <div id="menu-groups"></div>
+        </nav>
       </aside>
 
       <main id="main">
@@ -95,14 +97,12 @@
               <input id="set-font-custom" type="text" placeholder="e.g. 'Inter', sans-serif" hidden />
             </div>
             <div class="setting-row">
-              <label for="set-font-size">Base text size</label>
-              <input id="set-font-size" type="range" min="12" max="22" step="1" />
-              <span id="set-font-size-val" class="value-tag"></span>
+              <label for="set-font-size">Base text size (px)</label>
+              <input id="set-font-size" type="number" min="12" max="22" step="1" />
             </div>
             <div class="setting-row">
-              <label for="set-radius">Corner radius</label>
-              <input id="set-radius" type="range" min="0" max="24" step="1" />
-              <span id="set-radius-val" class="value-tag"></span>
+              <label for="set-radius">Corner radius (px)</label>
+              <input id="set-radius" type="number" min="0" max="24" step="1" />
             </div>
           </fieldset>
 
@@ -149,16 +149,19 @@
             </div>
             <div class="setting-row">
               <label for="set-default-model">Default model</label>
-              <input id="set-default-model" type="text" list="model-list" placeholder="e.g. mistral-large-latest" />
-              <datalist id="model-list"></datalist>
+              <select id="set-default-model">
+                <option value="">— none —</option>
+              </select>
+              <span class="hint">Populated from your account once a key is saved.</span>
             </div>
             <div class="setting-row">
               <label for="set-default-temperature">Default temperature</label>
-              <input id="set-default-temperature" type="number" step="any" min="0" max="2" placeholder="empty = API default" />
+              <input id="set-default-temperature" type="number" step="any" min="0" max="2" />
             </div>
             <div class="setting-row">
               <label for="set-default-max-tokens">Default max tokens</label>
-              <input id="set-default-max-tokens" type="number" step="1" min="1" placeholder="empty = API default" />
+              <input id="set-default-max-tokens" type="number" step="1" min="0" />
+              <span class="hint" id="max-tokens-hint">Upper bound set from the selected model's context length.</span>
             </div>
           </fieldset>
 
