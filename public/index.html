@@ -170,7 +170,7 @@
             <div class="setting-row" id="row-key">
               <label for="set-key">Default API key</label>
               <input id="set-key" type="password" autocomplete="off" placeholder="sk-…" disabled />
-              <span class="hint" id="key-hint">Check the acknowledgment above to enable. The key is saved only in this browser and only while a value exists.</span>
+              <span class="hint" id="key-hint">Check the acknowledgment above to enable, then press Save. The key is stored only in this browser and only while a value exists.</span>
             </div>
             <div class="setting-row" id="row-key-saved" hidden>
               <label>Saved key</label>
@@ -203,6 +203,11 @@
               <label for="set-default-max-tokens">Default max tokens</label>
               <input id="set-default-max-tokens" type="number" step="1" min="0" />
               <span class="hint" id="max-tokens-hint">Upper bound set from the selected model's context length.</span>
+            </div>
+            <div class="setting-row">
+              <label for="api-save">Save</label>
+              <button id="api-save" class="btn-primary" type="button">Save</button>
+              <span id="api-save-status" class="hint"></span>
             </div>
           </fieldset>
         </section>

@@ -550,21 +550,25 @@ function wireSettings(): void {
   ack.addEventListener('change', () => {
     keyInput.disabled = !ack.checked;
     $('#key-hint').textContent = ack.checked
-      ? 'Type your key — it is saved only in this browser.'
-      : 'Check the acknowledgment above to enable. The key is saved only in this browser and only while a value exists.';
+      ? 'Type your key, then press Save — it is stored only in this browser.'
+      : 'Check the acknowledgment above to enable, then press Save. The key is stored only in this browser and only while a value exists.';
     if (!ack.checked) keyInput.value = '';
   });
-  const saveKeyFromInput = (): void => {
-    if (!ack.checked) return;
+
+  $('#api-save').addEventListener('click', () => {
     const v = keyInput.value.trim();
-    if (v) {
+    if (!hasKey() && ack.checked && v) {
       setKey(v);
       keyInput.value = '';
-      refreshKeyDependent();
     }
-  };
-  keyInput.addEventListener('change', saveKeyFromInput);
-  keyInput.addEventListener('blur', saveKeyFromInput);
+    savePrefs(settings);
+    refreshKeyDependent();
+    const st = $('#api-save-status');
+    st.textContent = 'Saved ✓';
+    setTimeout(() => {
+      st.textContent = '';
+    }, 2000);
+  });
 
   $('#set-remove-key').addEventListener('click', () => {
     clearKey();
@@ -578,25 +582,22 @@ function wireSettings(): void {
   });
 
   $('#set-enable-secrets').addEventListener('change', (e) => {
-    if (!hasKey()) return;
+    if (!hasKey()) {
+      (e.target as HTMLInputElement).checked = false;
+      return;
+    }
     settings.enableSecretFields = (e.target as HTMLInputElement).checked;
-    savePrefs(settings);
-    if (currentOp) renderForm(currentOp);
   });
 
   $('#set-default-model').addEventListener('change', (e) => {
     settings.defaultModel = (e.target as HTMLSelectElement).value;
-    savePrefs(settings);
     void updateTokenRange(settings.defaultModel);
-    if (currentOp) renderForm(currentOp);
   });
   $('#set-default-temperature').addEventListener('input', (e) => {
     settings.defaultTemperature = (e.target as HTMLInputElement).value;
-    savePrefs(settings);
   });
   $('#set-default-max-tokens').addEventListener('input', (e) => {
     settings.defaultMaxTokens = (e.target as HTMLInputElement).value;
-    savePrefs(settings);
   });
 
   $('#settings-reset').addEventListener('click', () => {

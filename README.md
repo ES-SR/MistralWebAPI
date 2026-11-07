@@ -20,8 +20,9 @@ only in your browser, and attached to requests by the page itself.
 
 - No key is shipped in code and none is kept on the server.
 - In **Settings → API** you first see the security note and a checkbox *"I have read and understand the security
-  risks"*. The key input stays disabled until you check it; once checked, typing a key saves it **only in your
-  browser** (sessionStorage by default; opt-in localStorage via "Remember key across sessions").
+  risks"*. The key input stays disabled until you check it; the key (and the other API-section values) are stored
+  **only when you press the Save button**, and only in your browser (sessionStorage by default; opt-in
+  localStorage via "Remember key across sessions").
 - The acknowledgment is **tied to the presence of the key value**: there is no separate stored flag. Deleting the
   key — via "Remove saved key", closing the browser (sessionStorage), clearing site data, or any other way the
   value disappears — implicitly revokes the acknowledgment, the checkbox reappears, and a new key requires a
@@ -55,8 +56,10 @@ Requires Node.js ≥ 22.18 (the server runs as TypeScript directly via type-stri
 
 ```bash
 # either use the install script:
-./install.sh            # npm install + build
-./install.sh --run      # …and start the server
+./install.sh                  # npm install + build
+./install.sh --run            # …and start the server
+./install.sh --update         # pull latest (git pull --ff-only), then install + build
+./install.sh --update --run   # update + build + start
 
 # or manually:
 # 1. Install dependencies (runtime: the Mistral SDK; dev: sass/tsc/esbuild for the client build)
