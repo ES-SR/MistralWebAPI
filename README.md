@@ -1,107 +1,55 @@
-# Mistral API Playground
+# Web API Playground
 
-A minimal, framework-free web UI for exploring the full Mistral API with the official TypeScript SDK
-([`@mistralai/mistralai`](https://www.npmjs.com/package/@mistralai/mistralai)).
+A minimal, zero-dependency, framework-free web UI for exploring LLM and REST APIs (**Mistral AI**, **OpenAI / OpenAI-Compatible**, **Anthropic**, **Google Gemini**, and custom **OpenAPI 3.x / Swagger** specifications) directly from your browser.
 
-**Architecture:** the Node server only serves the static interface (bound to `127.0.0.1`, with a strict
-Content-Security-Policy). All API calls are made **directly from your browser** to `api.mistral.ai` using the
-SDK bundled into the page. **Your API key never touches the server** — it is entered by you in Settings, stored
-only in your browser, and attached to requests by the page itself.
+**Architecture:**
+- **Static Server ([`server.ts`](file:///home/mike/Projects/MistralWebAPI/server.ts)):** Serves only static files from `public/` (bound to `127.0.0.1` by default, with `Content-Security-Policy`, `nosniff`, and `no-store` headers). **Your API keys never touch the server** — they are entered in Settings, stored only in your browser (`sessionStorage` by default, or opt-in `localStorage`), and attached to requests directly by your browser.
+- **Zero Build / Zero Dependencies:** Uses native browser ES modules (`public/js/*.js`) and native CSS with selector nesting and CSS custom properties (`public/styles.css`). No `npm install`, bundler, or preprocessor step is required.
+- **Declarative HTTP + SSE Engine ([`public/js/executor.js`](file:///home/mike/Projects/MistralWebAPI/public/js/executor.js)):** Replaces SDK-specific switch statements with a unified `fetch` + Server-Sent Events (SSE) executor that handles path parameters, query strings, JSON bodies, multipart file uploads, cURL generation, and live streaming text extraction.
 
-- **Client** (`public/index.html` + `src/client/*.ts` + `src/client/styles.scss`) is plain HTML / TypeScript /
-  SCSS, bundled with esbuild. The sidebar lists every API operation (Chat, Embeddings, Models, FIM,
-  Moderation/classification, OCR, Files, Fine-tuning, Batch, Agents, Conversations, Libraries, Connectors,
-  Audio); the main area shows a form matching that operation's parameters, prefilled with example values.
-- **Settings** has two sections: *Appearance* (theme, colors, font family, text size, corner radius, field
-  widths, response max height — persisted in `localStorage`, applied live via CSS variables) and *API*
-  (default model / temperature / max tokens, key management, secret-field toggle).
+## Features
 
-## API key flow (consent-gated)
+- **Built-in API Providers:**
+  - **Mistral AI** (`https://api.mistral.ai` — Chat, Embeddings, Models, FIM, Moderation & Classification, OCR, Files, Fine-tuning, Batch, Agents, Conversations, Libraries, Connectors, Audio).
+  - **OpenAI / OpenAI-Compatible** (`https://api.openai.com` or custom Base URL for Ollama, vLLM, Groq, OpenRouter, DeepSeek — Chat, Responses API, Embeddings, Models, Images, Audio, Moderations, Files, Batches).
+  - **Anthropic** (`https://api.anthropic.com` — Messages, Streaming, Token Counting, Models, Message Batches).
+  - **Google Gemini** (`https://generativelanguage.googleapis.com` — GenerateContent, StreamGenerateContent, CountTokens, EmbedContent, Models).
+- **OpenAPI 3.x / Swagger Import ([`public/js/openapi.js`](file:///home/mike/Projects/MistralWebAPI/public/js/openapi.js)):**
+  - Paste an OpenAPI JSON spec, upload a `.json` file, or fetch from a URL in **Settings → Providers & OpenAPI** to automatically generate grouped sidebar menus and typed request forms for any REST API.
+- **User-Controlled Layout & CSS Variables:**
+  - Choose where the **Response panel** sits (`Top` above the form by default, `Bottom`, `Left` split, or `Right` split).
+  - Choose where the **Sidebar** (`Left` or `Right`) and **Form action bar** (`Top`, `Bottom`, or `Both`) sit.
+  - Every color, font stack, text size, line height, padding, gap, width, and border radius is backed by a CSS custom property and adjustable live in **Settings → Appearance & Layout**.
+- **Point-of-Use Controls & State Preservation:**
+  - Switching between operations or Settings preserves your form drafts and responses in memory.
+  - Response panel switches between **Raw JSON**, **Extracted / Text**, and **Request & cURL**, with one-click Copy, Clear, and in-flight Cancel.
 
-- No key is shipped in code and none is kept on the server.
-- In **Settings → API** you first see the security note and a checkbox *"I have read and understand the security
-  risks"*. The key input stays disabled until you check it; the key (and the other API-section values) are stored
-  **only when you press the Save button**, and only in your browser (sessionStorage by default; opt-in
-  localStorage via "Remember key across sessions").
-- The acknowledgment is **tied to the presence of the key value**: there is no separate stored flag. Deleting the
-  key — via "Remove saved key", closing the browser (sessionStorage), clearing site data, or any other way the
-  value disappears — implicitly revokes the acknowledgment, the checkbox reappears, and a new key requires a
-  fresh acknowledgment. The acknowledgment checkbox itself cannot be deselected once a key is saved.
-- The **"Enable secret form fields"** toggle is only enabled when a key is saved. Form API-key fields are disabled
-  and empty (masked) otherwise; when enabled they are prefilled with the saved key (masked) and editable as a
-  per-request override.
-- Therefore a request can carry a key only if a key value is currently stored, and a value can only be stored
-  behind a checked acknowledgment. If no key is saved, the main view shows a banner linking to the key setting,
-  and sending is refused with an explanation.
-- Note this is a **consent gate, not an access control**: you can always read/edit your own storage via devtools.
+## Run Locally
 
-## Security model
-
-The app's responsibility is to control what it can and to inform you about the rest:
-
-- **Controlled by the app:** key never shipped in code, never sent to or stored on the server, never logged;
-  server binds `127.0.0.1` only; CSP (`script-src 'self'`, `connect-src 'self' https://api.mistral.ai`,
-  `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`); `nosniff` + `no-store` headers; secret
-  fields masked and disabled by default; session-storage default for the key.
-- **Disclosed, not mitigable by the app** (also stated in Settings → API): the key is visible in devtools/network
-  traces by design (it is your own key); browser extensions, local malware, or other local processes can read
-  browser storage or loopback traffic; if site data is cleared the key (and acknowledgment) is gone; a leaked key
-  can incur billable usage and expose the prompts/documents you send. **Your mitigations:** use a least-privilege,
-  revocable key (not a production key), rotate it if you suspect exposure, keep the app on localhost, and put TLS
-  (e.g. a reverse proxy) in front if you ever expose it beyond localhost.
-
-## Run locally
-
-Requires Node.js ≥ 22.18 (the server runs as TypeScript directly via type-stripping — no build step for it).
-
-One command — the script clones the repo if `./MistralWebAPI` doesn't exist yet, otherwise pulls the latest into the existing checkout, then installs, builds and starts (review the script first if you like:
-[install.sh](https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe/mistral-playground-1d8990/install.sh)):
+Start the static server directly with Node (no `npm install` or build step needed):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe/mistral-playground-1d8990/install.sh | bash -s -- --run
+node server.ts
 ```
 
-(After this branch is merged, replace `vibe/mistral-playground-1d8990` with the default branch name.)
+Or use `./install.sh --run` to pull/clone and start the server in the background.
 
-To update later, just run the same command again — an existing `./MistralWebAPI` is pulled (`git pull --ff-only`) before rebuilding. From inside a clone: `./install.sh --run`.
+Open <http://127.0.0.1:3000>, select your provider, go to **Settings → API & Keys**, acknowledge the security note, and save your API key.
 
-Or step by step:
-
-```bash
-# either use the install script (pulls first when run inside an existing clone):
-./install.sh                  # npm install + build
-./install.sh --run            # …and start the server
-
-# or manually:
-# 1. Install dependencies (runtime: the Mistral SDK; dev: sass/tsc/esbuild for the client build)
-npm install
-
-# 2. Build the client (SCSS → CSS, typecheck, bundle TS+SDK → public/js/app.js)
-npm run build
-
-# 3. Start the static server (no API key needed on the server)
-npm start
-```
-
-Open <http://127.0.0.1:3000>, go to **Settings → API**, acknowledge the security note, and save your key.
-`PORT=8080 npm start` changes the port; `HOST=0.0.0.0 npm start` would expose it on the network (not recommended).
-
-> **Note for npm ≥ 12 (install-script gating):** this project needs **no** dependency install scripts.
-> Verified with `npm ci --ignore-scripts && npm run build` — esbuild's binary ships in its platform
-> package (`@esbuild/*`), and sass only uses `@parcel/watcher` in `--watch` mode, which we don't use.
-> The `npm warn install-scripts` notices about `esbuild` / `@parcel/watcher` are therefore harmless
-> (install still exits 0). Approve them (`npm install-scripts approve esbuild`) only if your setup
-> errors about a missing binary; otherwise leave them blocked.
-
-## Project layout
+## Project Layout
 
 ```
-server.ts                  # static file server only: 127.0.0.1 binding, CSP/nosniff/no-store headers
-src/shared/operations.ts   # catalog of all API operations + form fields (bundled into the client)
-src/shared/types.ts        # shared types (Operation, Field, AppSettings)
-src/client/app.ts          # UI: menu, forms, key/banner/toggle state, settings
-src/client/executor.ts     # maps each operation to the SDK call (runs in the browser, key from Settings)
-src/client/store.ts        # prefs (localStorage) + API key (sessionStorage/localStorage, ack-tied)
-src/client/styles.scss     # styles with CSS variables for live theming (compiled to public/styles.css)
-public/index.html          # app shell (API view + Settings view + <noscript> warning)
+server.ts                        # Dependency-free static HTTP server (127.0.0.1, CSP/nosniff/no-store)
+public/index.html                # App shell (Sidebar, API workspace, Settings sections)
+public/styles.css                # Native CSS with nesting and runtime CSS custom properties
+public/js/app.js                 # UI controller, menu, form builder, state caching, settings wiring
+public/js/executor.js            # Declarative fetch + SSE executor, cURL builder, stream extractor
+public/js/openapi.js             # OpenAPI 3.x / Swagger 2.0 JSON schema importer
+public/js/store.js               # Settings persistence, per-provider key management, custom providers
+public/js/providers/index.js     # Built-in provider registry
+public/js/providers/helpers.js   # Declarative operation and field builders
+public/js/providers/mistral.js   # Mistral AI operation catalog
+public/js/providers/openai.js    # OpenAI / OpenAI-compatible operation catalog
+public/js/providers/anthropic.js # Anthropic operation catalog
+public/js/providers/gemini.js    # Google Gemini operation catalog
 ```
