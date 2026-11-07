@@ -261,7 +261,12 @@
               <input id="set-color-info" type="color" />
             </div>
 
-            <div class="preview" id="style-preview">
+            <div class="setting-row">
+              <label for="settings-reset">Reset defaults</label>
+              <button id="settings-reset" class="btn-secondary" type="button">Reset appearance &amp; layout to defaults</button>
+            </div>
+
+            <footer class="preview" id="style-preview">
               <h3 class="preview-title">Live Preview</h3>
               <p>
                 Body text with <code>inline code</code>, <span class="badge ok">200 OK</span>,
@@ -274,8 +279,7 @@
                 <input type="text" placeholder="Text input…" aria-label="Preview text input" />
                 <select aria-label="Preview select"><option>Select…</option></select>
               </div>
-            </div>
-            <button id="settings-reset" class="btn-secondary" type="button">Reset appearance &amp; layout to defaults</button>
+            </footer>
           </fieldset>
 
           <!-- ── API & Keys ───────────────────────────────────────────── -->
