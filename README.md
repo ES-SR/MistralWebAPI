@@ -54,7 +54,16 @@ The app's responsibility is to control what it can and to inform you about the r
 
 Requires Node.js ≥ 22.18 (the server runs as TypeScript directly via type-stripping — no build step for it).
 
-One command — clones if the directory doesn't exist yet, otherwise reuses it, then installs, builds and starts:
+One command — clones if needed, installs, builds and starts (review the script first if you like:
+[install.sh](https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe/mistral-playground-1d8990/install.sh)):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe/mistral-playground-1d8990/install.sh | bash -s -- --run
+```
+
+(After this branch is merged, replace `vibe/mistral-playground-1d8990` with the default branch name.)
+
+Equivalent, from a clone:
 
 ```bash
 [ -d MistralWebAPI ] || git clone https://github.com/ES-SR/MistralWebAPI.git; cd MistralWebAPI && ./install.sh --run

@@ -1,13 +1,19 @@
 #!/bin/sh
-# Basic setup script: installs dependencies and builds the client.
-# Usage:
-#   ./install.sh             -> npm install + npm run build
-#   ./install.sh --run       -> also start the server (npm start)
-#   ./install.sh --update    -> git pull --ff-only first, then install + build
-#   ./install.sh --update --run
+# Setup script. Two ways to run:
+#
+#   1. From a checkout:        ./install.sh [--update] [--run]
+#   2. Piped from the raw URL: curl -fsSL <raw-url>/install.sh | bash -s -- [--update] [--run]
+#      (clones into ./MistralWebAPI if missing, then installs + builds)
+#
+# Flags:
+#   --update   git pull --ff-only before building (best-effort)
+#   --run      start the server after building (npm start)
+#
 # The server needs no API key; you add yours in the UI (Settings -> API -> Save).
 set -eu
-cd "$(dirname "$0")"
+
+REPO_URL="https://github.com/ES-SR/MistralWebAPI.git"
+DIR="MistralWebAPI"
 
 RUN=0
 UPDATE=0
@@ -17,6 +23,19 @@ for arg in "$@"; do
     --update|update) UPDATE=1 ;;
   esac
 done
+
+if [ -f "$0" ]; then
+  # executed as a file from inside a checkout
+  cd "$(dirname "$0")"
+else
+  # piped (curl ... | bash): $0 is "bash", so bootstrap a clone first
+  if [ -d "$DIR" ]; then
+    cd "$DIR"
+  else
+    git clone "$REPO_URL"
+    cd "$DIR"
+  fi
+fi
 
 if [ "$UPDATE" = "1" ]; then
   git pull --ff-only || echo "warning: git pull failed; continuing with the current checkout" >&2
