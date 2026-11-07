@@ -67,6 +67,13 @@ npm start
 Open <http://127.0.0.1:3000>, go to **Settings → API**, acknowledge the security note, and save your key.
 `PORT=8080 npm start` changes the port; `HOST=0.0.0.0 npm start` would expose it on the network (not recommended).
 
+> **Note for npm ≥ 12 (install-script gating):** this project needs **no** dependency install scripts.
+> Verified with `npm ci --ignore-scripts && npm run build` — esbuild's binary ships in its platform
+> package (`@esbuild/*`), and sass only uses `@parcel/watcher` in `--watch` mode, which we don't use.
+> The `npm warn install-scripts` notices about `esbuild` / `@parcel/watcher` are therefore harmless
+> (install still exits 0). Approve them (`npm install-scripts approve esbuild`) only if your setup
+> errors about a missing binary; otherwise leave them blocked.
+
 ## Project layout
 
 ```
