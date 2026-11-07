@@ -30,23 +30,6 @@ body {
   flex-direction: column;
 }
 
-.topbar {
-  height: var(--topbar-h, 56px);
-  flex: 0 0 var(--topbar-h, 56px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 18px;
-  background: var(--color-surface);
-  border-bottom: var(--border-width, 1px) solid var(--color-border);
-
-  .brand {
-    font-weight: 700;
-    letter-spacing: 0.2px;
-  }
-
-}
-
 .layout {
   flex: 1;
   display: flex;

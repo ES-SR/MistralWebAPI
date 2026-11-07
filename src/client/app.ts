@@ -19,6 +19,7 @@ const FONT_OPTIONS: Record<string, string> = {
 let settings: AppSettings = loadPrefs();
 let currentOp: Operation | null = null;
 let currentSettingsSection: 'appearance' | 'api' | null = null;
+const openGroups = new Set<string>();
 const operations: Operation[] = OPERATIONS;
 
 const $ = <T extends HTMLElement>(sel: string): T => {
@@ -49,7 +50,6 @@ function applySettings(): void {
   root.style.setProperty('--border-width', `${settings.borderWidth}px`);
   root.style.setProperty('--sidebar-w', `${settings.sidebarWidth}px`);
   root.style.setProperty('--layout-dir', settings.sidebarSide === 'right' ? 'row-reverse' : 'row');
-  root.style.setProperty('--topbar-h', `${settings.topbarHeight}px`);
   root.style.setProperty('--panel-pad', `${settings.panelPad}px`);
   root.style.setProperty('--field-gap', `${settings.fieldGap}px`);
   savePrefs(settings);
@@ -79,7 +79,6 @@ function syncAppearanceForm(): void {
   ($('#set-border-width') as HTMLInputElement).value = String(settings.borderWidth);
   ($('#set-sidebar-w') as HTMLInputElement).value = String(settings.sidebarWidth);
   ($('#set-sidebar-side') as HTMLSelectElement).value = settings.sidebarSide;
-  ($('#set-topbar-h') as HTMLInputElement).value = String(settings.topbarHeight);
   ($('#set-panel-pad') as HTMLInputElement).value = String(settings.panelPad);
   ($('#set-field-gap') as HTMLInputElement).value = String(settings.fieldGap);
   ($('#set-default-model') as HTMLSelectElement).value = settings.defaultModel;
@@ -187,7 +186,7 @@ function buildInput(field: Field): HTMLElement {
   } else if (field.type === 'number') {
     const n = document.createElement('input');
     n.type = 'number';
-    n.step = 'any';
+    n.step = ['temperature', 'topP', 'presencePenalty', 'frequencyPenalty'].includes(field.name) ? '0.01' : 'any';
     n.id = `f-${field.name}`;
     if (def !== undefined) n.value = String(def);
     if (field.placeholder) n.placeholder = field.placeholder;
@@ -232,40 +231,41 @@ function menuEntry(label: string, sub: string, active: boolean, onClick: () => v
   return li;
 }
 
+function addGroup(name: string, buildEntries: (ul: HTMLUListElement) => void): void {
+  const groupUl = document.createElement('ul');
+  groupUl.className = 'menu-group' + (openGroups.has(name) ? '' : ' collapsed');
+  const headerLi = document.createElement('li');
+  headerLi.className = 'menu-group-header';
+  headerLi.textContent = name;
+  headerLi.addEventListener('click', () => {
+    if (openGroups.has(name)) openGroups.delete(name);
+    else openGroups.add(name);
+    groupUl.classList.toggle('collapsed', !openGroups.has(name));
+  });
+  groupUl.appendChild(headerLi);
+  buildEntries(groupUl);
+  $('#menu-groups').appendChild(groupUl);
+}
+
 function renderMenu(): void {
-  const menu = $('#menu-groups');
-  menu.innerHTML = '';
-
-  const settingsUl = document.createElement('ul');
-  settingsUl.className = 'menu-group collapsed';
-  const settingsHeader = document.createElement('li');
-  settingsHeader.className = 'menu-group-header';
-  settingsHeader.textContent = 'Settings';
-  settingsHeader.addEventListener('click', () => settingsUl.classList.toggle('collapsed'));
-  settingsUl.appendChild(settingsHeader);
-  settingsUl.appendChild(menuEntry('Appearance', 'colors, fonts, sizes, layout', currentSettingsSection === 'appearance', () => selectSettings('appearance')));
-  settingsUl.appendChild(menuEntry('API', 'key, defaults, secret fields', currentSettingsSection === 'api', () => selectSettings('api')));
-  menu.appendChild(settingsUl);
-
+  $('#menu-groups').innerHTML = '';
+  addGroup('Settings', (ul) => {
+    ul.appendChild(menuEntry('Appearance', 'colors, fonts, sizes, layout', currentSettingsSection === 'appearance', () => selectSettings('appearance')));
+    ul.appendChild(menuEntry('API', 'key, defaults, secret fields', currentSettingsSection === 'api', () => selectSettings('api')));
+  });
   const groups = new Map<string, Operation[]>();
   for (const op of operations) {
     if (!groups.has(op.group)) groups.set(op.group, []);
     groups.get(op.group)!.push(op);
   }
   for (const [group, ops] of groups) {
-    const groupUl = document.createElement('ul');
-    groupUl.className = 'menu-group collapsed';
-    const headerLi = document.createElement('li');
-    headerLi.className = 'menu-group-header';
-    headerLi.textContent = group;
-    headerLi.addEventListener('click', () => groupUl.classList.toggle('collapsed'));
-    groupUl.appendChild(headerLi);
-    for (const op of ops) {
-      groupUl.appendChild(
-        menuEntry(op.label + (op.stream ? ' ⇢' : ''), `${op.method} ${op.path}`, !currentSettingsSection && op.id === currentOp?.id, () => selectOp(op.id)),
-      );
-    }
-    menu.appendChild(groupUl);
+    addGroup(group, (ul) => {
+      for (const op of ops) {
+        ul.appendChild(
+          menuEntry(op.label + (op.stream ? ' ⇢' : ''), `${op.method} ${op.path}`, !currentSettingsSection && op.id === currentOp?.id, () => selectOp(op.id)),
+        );
+      }
+    });
   }
 }
 
@@ -327,6 +327,7 @@ function selectOp(id: string): void {
   if (!op) return;
   currentOp = op;
   currentSettingsSection = null;
+  openGroups.add(op.group);
   renderMenu();
   renderForm(op);
   showView('api');
@@ -334,6 +335,7 @@ function selectOp(id: string): void {
 
 function selectSettings(sec: 'appearance' | 'api'): void {
   currentSettingsSection = sec;
+  openGroups.add('Settings');
   $('#section-appearance').hidden = sec !== 'appearance';
   $('#section-api').hidden = sec !== 'api';
   renderMenu();
@@ -531,7 +533,6 @@ function wireSettings(): void {
     ['#set-response-max-vh', 'responseMaxVh'],
     ['#set-border-width', 'borderWidth'],
     ['#set-sidebar-w', 'sidebarWidth'],
-    ['#set-topbar-h', 'topbarHeight'],
     ['#set-panel-pad', 'panelPad'],
     ['#set-field-gap', 'fieldGap'],
   ];
@@ -612,7 +613,6 @@ function wireSettings(): void {
     settings.borderWidth = d.borderWidth;
     settings.sidebarWidth = d.sidebarWidth;
     settings.sidebarSide = d.sidebarSide;
-    settings.topbarHeight = d.topbarHeight;
     settings.panelPad = d.panelPad;
     settings.fieldGap = d.fieldGap;
     applySettings();

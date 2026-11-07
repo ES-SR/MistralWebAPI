@@ -51,7 +51,6 @@ export interface AppSettings {
   borderWidth: number;
   sidebarWidth: number;
   sidebarSide: 'left' | 'right';
-  topbarHeight: number;
   panelPad: number;
   fieldGap: number;
 }

@@ -29,7 +29,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   borderWidth: 1,
   sidebarWidth: 300,
   sidebarSide: 'left',
-  topbarHeight: 56,
   panelPad: 20,
   fieldGap: 16,
 };

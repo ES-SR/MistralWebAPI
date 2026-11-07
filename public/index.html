@@ -15,10 +15,6 @@
       </div>
     </noscript>
 
-    <header class="topbar">
-      <div class="brand">⚡ Mistral API Playground</div>
-    </header>
-
     <div class="layout">
       <aside id="sidebar">
         <div class="sidebar-hint">Select an operation or settings</div>
@@ -123,10 +119,6 @@
               <input id="set-sidebar-w" type="number" step="1" min="120" />
             </div>
             <div class="setting-row">
-              <label for="set-topbar-h">Top bar height (px)</label>
-              <input id="set-topbar-h" type="number" step="1" min="36" />
-            </div>
-            <div class="setting-row">
               <label for="set-panel-pad">Panel padding (px)</label>
               <input id="set-panel-pad" type="number" step="1" min="0" />
             </div>
@@ -205,7 +197,7 @@
             </div>
             <div class="setting-row">
               <label for="set-default-temperature">Default temperature</label>
-              <input id="set-default-temperature" type="number" step="any" min="0" max="2" />
+              <input id="set-default-temperature" type="number" step="0.1" min="0" max="2" />
             </div>
             <div class="setting-row">
               <label for="set-default-max-tokens">Default max tokens</label>
