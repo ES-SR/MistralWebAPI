@@ -131,12 +131,14 @@ function buildInput(field: Field): HTMLElement {
     }
     if (def !== undefined && field.required) sel.value = String(def);
     input = sel;
+    wrap.classList.add('field-inline');
   } else if (field.type === 'boolean') {
     const box = document.createElement('input');
     box.type = 'checkbox';
     box.id = `f-${field.name}`;
     box.checked = def === true;
     input = box;
+    wrap.classList.add('field-inline');
   } else if (field.type === 'json' || field.type === 'text') {
     const ta = document.createElement('textarea');
     ta.id = `f-${field.name}`;
@@ -176,6 +178,7 @@ function buildInput(field: Field): HTMLElement {
     if (def !== undefined) s.value = String(def);
     if (field.placeholder) s.placeholder = field.placeholder;
     input = s;
+    wrap.classList.add('field-flex');
   }
   wrap.appendChild(input);
   if (field.type === 'secret') input.classList.add('secret-field');
@@ -255,7 +258,6 @@ function renderForm(op: Operation): void {
 
   const form = document.createElement('form');
   form.id = 'op-form';
-  for (const field of op.fields) form.appendChild(buildInput(field));
 
   const actions = document.createElement('div');
   actions.className = 'form-actions';
@@ -265,6 +267,9 @@ function renderForm(op: Operation): void {
   submit.textContent = op.stream ? 'Send (streamed)' : 'Send request';
   actions.appendChild(submit);
   form.appendChild(actions);
+
+  for (const field of op.fields) form.appendChild(buildInput(field));
+
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     void send(op, form);
