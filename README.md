@@ -54,6 +54,11 @@ The app's responsibility is to control what it can and to inform you about the r
 Requires Node.js ≥ 22.18 (the server runs as TypeScript directly via type-stripping — no build step for it).
 
 ```bash
+# either use the install script:
+./install.sh            # npm install + build
+./install.sh --run      # …and start the server
+
+# or manually:
 # 1. Install dependencies (runtime: the Mistral SDK; dev: sass/tsc/esbuild for the client build)
 npm install
 
