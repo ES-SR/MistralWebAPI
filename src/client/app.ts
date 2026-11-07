@@ -18,6 +18,7 @@ const FONT_OPTIONS: Record<string, string> = {
 
 let settings: AppSettings = loadPrefs();
 let currentOp: Operation | null = null;
+let currentSettingsSection: 'appearance' | 'api' | null = null;
 const operations: Operation[] = OPERATIONS;
 
 const $ = <T extends HTMLElement>(sel: string): T => {
@@ -47,6 +48,7 @@ function applySettings(): void {
   else root.style.removeProperty('--response-max-vh');
   root.style.setProperty('--border-width', `${settings.borderWidth}px`);
   root.style.setProperty('--sidebar-w', `${settings.sidebarWidth}px`);
+  root.style.setProperty('--layout-dir', settings.sidebarSide === 'right' ? 'row-reverse' : 'row');
   root.style.setProperty('--topbar-h', `${settings.topbarHeight}px`);
   root.style.setProperty('--panel-pad', `${settings.panelPad}px`);
   root.style.setProperty('--field-gap', `${settings.fieldGap}px`);
@@ -76,6 +78,7 @@ function syncAppearanceForm(): void {
   ($('#set-response-max-vh') as HTMLInputElement).value = String(settings.responseMaxVh);
   ($('#set-border-width') as HTMLInputElement).value = String(settings.borderWidth);
   ($('#set-sidebar-w') as HTMLInputElement).value = String(settings.sidebarWidth);
+  ($('#set-sidebar-side') as HTMLSelectElement).value = settings.sidebarSide;
   ($('#set-topbar-h') as HTMLInputElement).value = String(settings.topbarHeight);
   ($('#set-panel-pad') as HTMLInputElement).value = String(settings.panelPad);
   ($('#set-field-gap') as HTMLInputElement).value = String(settings.fieldGap);
@@ -210,9 +213,40 @@ function buildInput(field: Field): HTMLElement {
   return wrap;
 }
 
+function menuEntry(label: string, sub: string, active: boolean, onClick: () => void): HTMLLIElement {
+  const li = document.createElement('li');
+  li.className = 'menu-entry';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'menu-item' + (active ? ' active' : '');
+  const title = document.createElement('span');
+  title.className = 'menu-label';
+  title.textContent = label;
+  const path = document.createElement('span');
+  path.className = 'menu-path';
+  path.textContent = sub;
+  btn.appendChild(title);
+  btn.appendChild(path);
+  btn.addEventListener('click', onClick);
+  li.appendChild(btn);
+  return li;
+}
+
 function renderMenu(): void {
   const menu = $('#menu-groups');
   menu.innerHTML = '';
+
+  const settingsUl = document.createElement('ul');
+  settingsUl.className = 'menu-group collapsed';
+  const settingsHeader = document.createElement('li');
+  settingsHeader.className = 'menu-group-header';
+  settingsHeader.textContent = 'Settings';
+  settingsHeader.addEventListener('click', () => settingsUl.classList.toggle('collapsed'));
+  settingsUl.appendChild(settingsHeader);
+  settingsUl.appendChild(menuEntry('Appearance', 'colors, fonts, sizes, layout', currentSettingsSection === 'appearance', () => selectSettings('appearance')));
+  settingsUl.appendChild(menuEntry('API', 'key, defaults, secret fields', currentSettingsSection === 'api', () => selectSettings('api')));
+  menu.appendChild(settingsUl);
+
   const groups = new Map<string, Operation[]>();
   for (const op of operations) {
     if (!groups.has(op.group)) groups.set(op.group, []);
@@ -227,23 +261,9 @@ function renderMenu(): void {
     headerLi.addEventListener('click', () => groupUl.classList.toggle('collapsed'));
     groupUl.appendChild(headerLi);
     for (const op of ops) {
-      const li = document.createElement('li');
-      li.className = 'menu-entry';
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'menu-item' + (op.id === currentOp?.id ? ' active' : '');
-      btn.dataset.op = op.id;
-      const title = document.createElement('span');
-      title.className = 'menu-label';
-      title.textContent = op.label + (op.stream ? ' ⇢' : '');
-      const path = document.createElement('span');
-      path.className = 'menu-path';
-      path.textContent = `${op.method} ${op.path}`;
-      btn.appendChild(title);
-      btn.appendChild(path);
-      btn.addEventListener('click', () => selectOp(op.id));
-      li.appendChild(btn);
-      groupUl.appendChild(li);
+      groupUl.appendChild(
+        menuEntry(op.label + (op.stream ? ' ⇢' : ''), `${op.method} ${op.path}`, !currentSettingsSection && op.id === currentOp?.id, () => selectOp(op.id)),
+      );
     }
     menu.appendChild(groupUl);
   }
@@ -306,9 +326,18 @@ function selectOp(id: string): void {
   const op = operations.find((o) => o.id === id);
   if (!op) return;
   currentOp = op;
+  currentSettingsSection = null;
   renderMenu();
   renderForm(op);
   showView('api');
+}
+
+function selectSettings(sec: 'appearance' | 'api'): void {
+  currentSettingsSection = sec;
+  $('#section-appearance').hidden = sec !== 'appearance';
+  $('#section-api').hidden = sec !== 'api';
+  renderMenu();
+  showView('settings');
 }
 
 function collectParams(op: Operation, form: HTMLFormElement): Record<string, any> {
@@ -390,19 +419,6 @@ async function send(op: Operation, form: HTMLFormElement): Promise<void> {
 function showView(view: 'api' | 'settings'): void {
   $('#view-api').hidden = view !== 'api';
   $('#view-settings').hidden = view !== 'settings';
-  $('#nav-settings').classList.toggle('active', view === 'settings');
-  if (view === 'api') {
-    $('#nav-set-appearance').classList.remove('active');
-    $('#nav-set-api').classList.remove('active');
-  }
-}
-
-function showSettingsSection(sec: 'appearance' | 'api'): void {
-  showView('settings');
-  $('#section-appearance').hidden = sec !== 'appearance';
-  $('#section-api').hidden = sec !== 'api';
-  $('#nav-set-appearance').classList.toggle('active', sec === 'appearance');
-  $('#nav-set-api').classList.toggle('active', sec === 'api');
 }
 
 async function loadModelList(): Promise<void> {
@@ -453,12 +469,14 @@ async function updateTokenRange(modelId: string): Promise<void> {
 }
 
 function wireSettings(): void {
-  $('#nav-settings').addEventListener('click', () => showSettingsSection('appearance'));
-  $('#nav-set-appearance').addEventListener('click', () => showSettingsSection('appearance'));
-  $('#nav-set-api').addEventListener('click', () => showSettingsSection('api'));
   $('#banner-open-settings').addEventListener('click', () => {
-    showSettingsSection('api');
+    selectSettings('api');
     $('#row-key').scrollIntoView({ block: 'center' });
+  });
+
+  $('#set-sidebar-side').addEventListener('change', (e) => {
+    settings.sidebarSide = (e.target as HTMLSelectElement).value === 'right' ? 'right' : 'left';
+    applySettings();
   });
 
   $('#set-theme').addEventListener('change', (e) => {
@@ -593,6 +611,7 @@ function wireSettings(): void {
     settings.responseMaxVh = d.responseMaxVh;
     settings.borderWidth = d.borderWidth;
     settings.sidebarWidth = d.sidebarWidth;
+    settings.sidebarSide = d.sidebarSide;
     settings.topbarHeight = d.topbarHeight;
     settings.panelPad = d.panelPad;
     settings.fieldGap = d.fieldGap;

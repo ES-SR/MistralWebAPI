@@ -50,6 +50,7 @@ body {
 .layout {
   flex: 1;
   display: flex;
+  flex-direction: var(--layout-dir, row);
   min-height: 0;
 }
 
@@ -58,13 +59,8 @@ body {
   flex: 0 0 var(--sidebar-w, 300px);
   overflow-y: auto;
   background: var(--color-surface);
-  border-right: var(--border-width, 1px) solid var(--color-border);
+  border-inline-end: var(--border-width, 1px) solid var(--color-border);
   padding: 12px;
-
-  .nav-settings {
-    margin-bottom: 6px;
-    border: var(--border-width, 1px) solid var(--color-border);
-  }
 
   .sidebar-hint {
     color: var(--color-muted);
@@ -532,12 +528,6 @@ input:disabled,
 select:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-.menu-item.sub {
-  margin-left: 8px;
-  padding: 5px 10px;
-  font-size: 0.92em;
 }
 
 .preview {

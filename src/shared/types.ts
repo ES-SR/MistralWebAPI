@@ -50,6 +50,7 @@ export interface AppSettings {
   responseMaxVh: number;
   borderWidth: number;
   sidebarWidth: number;
+  sidebarSide: 'left' | 'right';
   topbarHeight: number;
   panelPad: number;
   fieldGap: number;
