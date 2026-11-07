@@ -54,6 +54,16 @@ The app's responsibility is to control what it can and to inform you about the r
 
 Requires Node.js ≥ 22.18 (the server runs as TypeScript directly via type-stripping — no build step for it).
 
+One command — clones if the directory doesn't exist yet, otherwise reuses it, then installs, builds and starts:
+
+```bash
+[ -d MistralWebAPI ] || git clone https://github.com/ES-SR/MistralWebAPI.git; cd MistralWebAPI && ./install.sh --run
+```
+
+For updates only (pull latest, rebuild, start): `cd MistralWebAPI && ./install.sh --update --run`
+
+Or step by step:
+
 ```bash
 # either use the install script:
 ./install.sh                  # npm install + build
