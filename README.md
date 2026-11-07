@@ -54,7 +54,7 @@ The app's responsibility is to control what it can and to inform you about the r
 
 Requires Node.js ≥ 22.18 (the server runs as TypeScript directly via type-stripping — no build step for it).
 
-One command — the script clones the repo if `./MistralWebAPI` doesn't exist yet (otherwise reuses it), then installs, builds and starts (review the script first if you like:
+One command — the script clones the repo if `./MistralWebAPI` doesn't exist yet, otherwise pulls the latest into the existing checkout, then installs, builds and starts (review the script first if you like:
 [install.sh](https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe/mistral-playground-1d8990/install.sh)):
 
 ```bash
@@ -63,22 +63,14 @@ curl -fsSL https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe
 
 (After this branch is merged, replace `vibe/mistral-playground-1d8990` with the default branch name.)
 
-To update an existing checkout, run the same command with `--update` — it pulls the latest code and re-downloads/re-runs the latest install script:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/ES-SR/MistralWebAPI/refs/heads/vibe/mistral-playground-1d8990/install.sh | bash -s -- --update --run
-```
-
-(From inside a clone, `./install.sh --update --run` does the same: pulls, then re-runs the newest script from the remote.)
+To update later, just run the same command again — an existing `./MistralWebAPI` is pulled (`git pull --ff-only`) before rebuilding. From inside a clone: `./install.sh --run`.
 
 Or step by step:
 
 ```bash
-# either use the install script:
+# either use the install script (pulls first when run inside an existing clone):
 ./install.sh                  # npm install + build
 ./install.sh --run            # …and start the server
-./install.sh --update         # pull latest (git pull --ff-only), then install + build
-./install.sh --update --run   # update + build + start
 
 # or manually:
 # 1. Install dependencies (runtime: the Mistral SDK; dev: sass/tsc/esbuild for the client build)
