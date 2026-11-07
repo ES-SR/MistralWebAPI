@@ -44,4 +44,8 @@ export interface AppSettings {
   defaultMaxTokens: string;
   enableSecretFields: boolean;
   persistKey: boolean;
+  numFieldWidth: number;
+  selectFieldWidth: number;
+  textFieldBasis: number;
+  responseMaxVh: number;
 }

@@ -12,9 +12,9 @@ only in your browser, and attached to requests by the page itself.
   SCSS, bundled with esbuild. The sidebar lists every API operation (Chat, Embeddings, Models, FIM,
   Moderation/classification, OCR, Files, Fine-tuning, Batch, Agents, Conversations, Libraries, Connectors,
   Audio); the main area shows a form matching that operation's parameters, prefilled with example values.
-- **Settings** has two sections: *Appearance* (theme, colors, font family, text size, corner radius — persisted
-  in `localStorage`, applied live via CSS variables) and *API* (default model / temperature / max tokens, key
-  management, secret-field toggle).
+- **Settings** has two sections: *Appearance* (theme, colors, font family, text size, corner radius, field
+  widths, response max height — persisted in `localStorage`, applied live via CSS variables) and *API*
+  (default model / temperature / max tokens, key management, secret-field toggle).
 
 ## API key flow (consent-gated)
 

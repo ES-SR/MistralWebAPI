@@ -40,6 +40,11 @@ function applySettings(): void {
   root.style.setProperty('--font-family', settings.fontFamily);
   root.style.setProperty('--font-size-base', `${settings.fontSize}px`);
   root.style.setProperty('--radius', `${settings.radius}px`);
+  root.style.setProperty('--num-field-width', `${settings.numFieldWidth}px`);
+  root.style.setProperty('--select-field-width', `${settings.selectFieldWidth}px`);
+  root.style.setProperty('--text-field-basis', `${settings.textFieldBasis}px`);
+  if (settings.responseMaxVh > 0) root.style.setProperty('--response-max-vh', `${settings.responseMaxVh}vh`);
+  else root.style.removeProperty('--response-max-vh');
   savePrefs(settings);
 }
 
@@ -60,6 +65,10 @@ function syncAppearanceForm(): void {
   fs.value = String(settings.fontSize);
   const r = $('#set-radius') as HTMLInputElement;
   r.value = String(settings.radius);
+  ($('#set-num-field-width') as HTMLInputElement).value = String(settings.numFieldWidth);
+  ($('#set-select-field-width') as HTMLInputElement).value = String(settings.selectFieldWidth);
+  ($('#set-text-field-basis') as HTMLInputElement).value = String(settings.textFieldBasis);
+  ($('#set-response-max-vh') as HTMLInputElement).value = String(settings.responseMaxVh);
   ($('#set-default-model') as HTMLSelectElement).value = settings.defaultModel;
   ($('#set-default-temperature') as HTMLInputElement).value = settings.defaultTemperature;
   ($('#set-default-max-tokens') as HTMLInputElement).value = settings.defaultMaxTokens;
@@ -473,6 +482,20 @@ function wireSettings(): void {
     settings.radius = v;
     applySettings();
   });
+  const numberSettings: [string, keyof AppSettings][] = [
+    ['#set-num-field-width', 'numFieldWidth'],
+    ['#set-select-field-width', 'selectFieldWidth'],
+    ['#set-text-field-basis', 'textFieldBasis'],
+    ['#set-response-max-vh', 'responseMaxVh'],
+  ];
+  for (const [sel, key] of numberSettings) {
+    $(sel).addEventListener('input', (e) => {
+      const v = Number((e.target as HTMLInputElement).value);
+      if (Number.isNaN(v)) return;
+      (settings as any)[key] = v;
+      applySettings();
+    });
+  }
 
   const ack = $('#set-ack') as HTMLInputElement;
   const keyInput = $('#set-key') as HTMLInputElement;

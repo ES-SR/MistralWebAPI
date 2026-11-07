@@ -323,11 +323,11 @@ body {
   }
 
   input {
-    width: 110px;
+    width: var(--num-field-width, 110px);
   }
 
   select {
-    width: 200px;
+    width: var(--select-field-width, 200px);
   }
 
   input[type="checkbox"] {
@@ -336,7 +336,7 @@ body {
 }
 
 .field-row.field-flex {
-  flex: 1 1 320px;
+  flex: 1 1 var(--text-field-basis, 320px);
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -355,7 +355,7 @@ body {
 }
 
 .form-actions {
-  flex: 1 1 100%;
+  flex: 0 0 auto;
   margin: 0 0 16px;
 }
 
@@ -407,7 +407,7 @@ body {
   pre {
     margin: 0;
     min-height: 140px;
-    max-height: 60vh;
+    max-height: var(--response-max-vh, 60vh);
     overflow: auto;
     resize: vertical;
     background: var(--color-surface-alt);

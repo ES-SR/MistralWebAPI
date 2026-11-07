@@ -22,6 +22,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultMaxTokens: '0',
   enableSecretFields: false,
   persistKey: false,
+  numFieldWidth: 110,
+  selectFieldWidth: 200,
+  textFieldBasis: 320,
+  responseMaxVh: 60,
 };
 
 export function loadPrefs(): AppSettings {
