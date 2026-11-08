@@ -3,9 +3,9 @@
 A minimal, zero-dependency, framework-free web UI for exploring LLM and REST APIs (**Mistral AI**, **OpenAI / OpenAI-Compatible**, **Anthropic**, **Google Gemini**, and custom **OpenAPI 3.x / Swagger** specifications) directly from your browser.
 
 **Architecture:**
-- **Static Server ([`server.ts`](file:///home/mike/Projects/MistralWebAPI/server.ts)):** Serves only static files from `public/` (bound to `127.0.0.1` by default, with `Content-Security-Policy`, `nosniff`, and `no-store` headers). **Your API keys never touch the server** — they are entered in Settings, stored only in your browser (`sessionStorage` by default, or opt-in `localStorage`), and attached to requests directly by your browser.
+- **Static Server ([`server.ts`](server.ts)):** Serves only static files from `public/` (bound to `127.0.0.1` by default, with `Content-Security-Policy`, `nosniff`, and `no-store` headers). **Your API keys never touch the server** — they are entered in Settings, stored only in your browser (`sessionStorage` by default, or opt-in `localStorage`), and attached to requests directly by your browser.
 - **Zero Build / Zero Dependencies:** Uses native browser ES modules (`public/js/*.js`) and native CSS with selector nesting and CSS custom properties (`public/styles.css`). No `npm install`, bundler, or preprocessor step is required.
-- **Declarative HTTP + SSE Engine ([`public/js/executor.js`](file:///home/mike/Projects/MistralWebAPI/public/js/executor.js)):** Replaces SDK-specific switch statements with a unified `fetch` + Server-Sent Events (SSE) executor that handles path parameters, query strings, JSON bodies, multipart file uploads, cURL generation, and live streaming text extraction.
+- **Declarative HTTP + SSE Engine ([`public/js/executor.js`](public/js/executor.js)):** Replaces SDK-specific switch statements with a unified `fetch` + Server-Sent Events (SSE) executor that handles path parameters, query strings, JSON bodies, multipart file uploads, cURL generation, and live streaming text extraction.
 
 ## Features
 
@@ -14,7 +14,7 @@ A minimal, zero-dependency, framework-free web UI for exploring LLM and REST API
   - **OpenAI / OpenAI-Compatible** (`https://api.openai.com` or custom Base URL for Ollama, vLLM, Groq, OpenRouter, DeepSeek — Chat, Responses API, Embeddings, Models, Images, Audio, Moderations, Files, Batches).
   - **Anthropic** (`https://api.anthropic.com` — Messages, Streaming, Token Counting, Models, Message Batches).
   - **Google Gemini** (`https://generativelanguage.googleapis.com` — GenerateContent, StreamGenerateContent, CountTokens, EmbedContent, Models).
-- **OpenAPI 3.x / Swagger Import ([`public/js/openapi.js`](file:///home/mike/Projects/MistralWebAPI/public/js/openapi.js)):**
+- **OpenAPI 3.x / Swagger Import ([`public/js/openapi.js`](public/js/openapi.js)):**
   - Paste an OpenAPI JSON spec, upload a `.json` file, or fetch from a URL in **Settings → Providers & OpenAPI** to automatically generate grouped sidebar menus and typed request forms for any REST API.
 - **User-Controlled Layout & CSS Variables:**
   - Choose where the **Response panel** sits (`Top` above the form by default, `Bottom`, `Left` split, or `Right` split).
@@ -35,6 +35,15 @@ node server.ts
 Or use `./install.sh --run` to pull/clone and start the server in the background.
 
 Open <http://127.0.0.1:3000>, select your provider, go to **Settings → API & Keys**, acknowledge the security note, and save your API key.
+
+## CI (automated checks)
+
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs automatically on every pull request and every push to the default branch. It needs **no setup from you** — for a public repo, Actions is already enabled. It:
+
+1. syntax-checks every JS/TS file (`node --check`),
+2. boots `server.ts` on a test port and verifies the pages/assets serve with the security headers, `/api/*` returns 404, and path traversal is blocked (`npm run smoke`, see `scripts/smoke.mjs`).
+
+**How to see the results:** open the PR (or repo → *Actions* tab) → the run shows green ✓ or red ✗ with logs. If your organization has Actions disabled, enable it once via repo *Settings → Actions → General → "Allow all actions"*. To run the exact same checks locally at any time: `npm run smoke` (needs Node ≥ 22.18, no install required).
 
 ## Project Layout
 
