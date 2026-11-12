@@ -44,22 +44,23 @@ node server.ts ConfigurationFile=./my.conf        # custom Key=Value config file
 node server.ts Help                               # show CLI options (or -h, --help)
 ```
 
-Or use [`install.zsh`](install.zsh) (the `@webAPI` Zsh CLI tool powered by `@args:parse` from `ES-SR/ZshTools`) or [`install.sh`](install.sh) (Bash):
+Or run [`install.zsh`](install.zsh) once to install the standalone `@webAPI` CLI function and `_@webAPI` completion into your `$fpath` (prompting via `vared` before writing or modifying `.zshrc`), then use `@webAPI` directly from anywhere:
 
 ```zsh
-./install.zsh Install              # interactively prompt (via vared) for repo, XDG/$path wrapper & $fpath completion
-./install.zsh ServerRun Port=8080  # start background server (or Server / ServerLaunch) and record state in XDG runtime/state dir
-./install.zsh ServerCheck          # check running server PID and URL
-./install.zsh ServerStop           # stop background server
+./install.zsh                      # interactively install @webAPI & _@webAPI into $fpath and configure autoload
+
+@webAPI ServerRun Port=8080        # start background server (or -sr / Server / ServerLaunch)
+@webAPI ServerCheck                # check running server PID and URL (-sc)
+@webAPI ServerStop                 # stop background server (-ss)
 
 # Loopback Web-Terminal Bridge (never touches or transmits API keys):
-./install.zsh BridgeInfo                                                    # inspect connected browser tabs & active op (or Bridge)
-./install.zsh BridgeOperation mistral chat.complete                         # switch provider & operation in the browser UI (-bo)
-./install.zsh BridgeFill model=mistral-small-latest temperature=0.3         # populate form fields in the browser UI (-bf)
-./install.zsh BridgeSend mistral:chat.complete model=mistral-small-latest --extract-keys content
-./install.zsh BridgeResponse --extract-keys content id                      # fetch latest browser response & extract keys (-br)
-./install.zsh BridgeListen                                                  # stream live SSE events from the bridge (-bl)
-./install.zsh ExtractKeys content id < response.json                        # extract Key=Value pairs from JSON without jq (-ek)
+@webAPI BridgeInfo                                                    # inspect connected browser tabs & active op (-bi / Bridge)
+@webAPI BridgeOperation mistral chat.complete                         # switch provider & operation in the browser UI (-bo)
+@webAPI BridgeFill model=mistral-small-latest temperature=0.3         # populate form fields in the browser UI (-bf)
+@webAPI BridgeSend mistral:chat.complete model=mistral-small-latest --extract-keys content
+@webAPI BridgeResponse --extract-keys content id                      # fetch latest browser response & extract keys (-br)
+@webAPI BridgeListen                                                  # stream live SSE events from the bridge (-bl)
+@webAPI ExtractKeys content id < response.json                        # extract Key=Value pairs from JSON without jq (-ek)
 ```
 
 > **Security note on `--host`:** The server defaults to loopback (`127.0.0.1`). If you bind to a non-loopback interface (e.g. `0.0.0.0` or a LAN IP), the server logs a warning — always place a TLS reverse proxy in front if exposing beyond localhost.

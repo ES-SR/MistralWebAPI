@@ -49,19 +49,27 @@ function @webAPI {
 			local DefaultDataDir="${XDG_DATA_HOME:-${${(s.:.)XDG_DATA_DIRS}[1]:-${HOME}/.local/share}}/webapi"
 			local DefaultConfigDir="${XDG_CONFIG_HOME:-${${(s.:.)XDG_CONFIG_DIRS}[1]:-${HOME}/.config}}/webapi"
 			local DefaultStateDir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}}/webapi"
+			local InstallConf="${DefaultConfigDir}/install.conf"
+
+			local RepoDir="" FuncDir="${DefaultFuncDir}" BinDir="${DefaultBinDir}"
+			if [[ -f "${InstallConf}" ]] {
+				. <(print -rl -- "${(@)${(@f)$(<"${InstallConf}")}//[[:space:]]/}")
+			}
 
 			WebAPIPaths=(
-				BinDir     "${DefaultBinDir}"
-				FuncDir    "${DefaultFuncDir}"
-				DataDir    "${DefaultDataDir}"
-				ConfigDir  "${DefaultConfigDir}"
-				StateDir   "${DefaultStateDir}"
-				StateFile  "${DefaultStateDir}/server.state"
+				RepoDir      "${RepoDir}"
+				BinDir       "${BinDir}"
+				FuncDir      "${FuncDir}"
+				DataDir      "${DefaultDataDir}"
+				ConfigDir    "${DefaultConfigDir}"
+				InstallConf  "${InstallConf}"
+				StateDir     "${DefaultStateDir}"
+				StateFile    "${DefaultStateDir}/server.state"
 			)
 		}
 
 		function __@webAPI:repo:ensure {
-			local TargetDir="${1:-MistralWebAPI}"
+			local TargetDir="${1:-${WebAPIPaths[RepoDir]:-MistralWebAPI}}"
 			local WebAPIRepoURL='https://github.com/ES-SR/MistralWebAPI.git'
 
 			if [[ "${PWD:t}" == "${TargetDir:t}" && -d .git ]] {
@@ -82,8 +90,8 @@ function @webAPI {
 		}
 
 		function __@webAPI:install {
-			local RepoTarget="${Directory[1]:-${PWD}/MistralWebAPI}"
-			if [[ "${PWD:t}" == "MistralWebAPI" && -d .git ]] {
+			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-${PWD}/MistralWebAPI}}"
+			if [[ -f "${PWD}/server.ts" && -d "${PWD}/.git" ]] {
 				RepoTarget="${PWD}"
 			}
 
@@ -94,58 +102,97 @@ function @webAPI {
 
 			__@webAPI:repo:ensure "${RepoTarget}" || return 1
 
-			local WrapperDir="${WebAPIPaths[BinDir]}"
+			local FuncDir="${WebAPIPaths[FuncDir]}"
 			if [[ -t 0 ]] {
-				vared -p "Directory for '@webAPI' CLI wrapper (leave empty to skip): " -c WrapperDir
+				vared -p "Directory to install '@webAPI' & '_@webAPI' functions (leave empty to skip): " -c FuncDir
 			}
 
-			if [[ -n "${WrapperDir}" ]] {
-				mkdir -p "${WrapperDir}"
-				local WrapperPath="${WrapperDir}/@webAPI"
-				cat > "${WrapperPath}" <<-EOF
+			if [[ -n "${FuncDir}" ]] {
+				mkdir -p "${FuncDir}" "${WebAPIPaths[ConfigDir]}"
+				cat > "${WebAPIPaths[InstallConf]}" <<-EOF
+					RepoDir = ${WebAPIPaths[RepoDir]}
+					FuncDir = ${FuncDir}
+				EOF
+
+				local FuncPath="${FuncDir}/@webAPI"
+				cat > "${FuncPath}" <<-EOF
 					#!/usr/bin/env zsh
-					source "${WebAPIPaths[RepoDir]}/install.zsh"
+					#autoload
+					() {
+						emulate -LR zsh -o extendedglob -o typesetsilent -o shortloops
+						(( \${+functions[__@args:parse]} )) && return 0
+						local ArgParserURL='https://raw.githubusercontent.com/ES-SR/ZshTools/refs/heads/main/%40/args/%40args%3Aparse.zsh'
+						. <(2>/dev/null curl -fsSL "\${ArgParserURL}" --)
+					}
+					$(typeset -f @webAPI)
 					@webAPI "\${(@)argv}"
 				EOF
-				chmod +x "${WrapperPath}"
-				print "Installed CLI wrapper: ${WrapperPath}"
-				if (( ! ${path[(Ie)${WrapperDir}]} )) {
-					print "Note: ${WrapperDir} is not currently in \$path."
-				}
-			}
+				chmod +x "${FuncPath}"
 
-			local CompDir="${WebAPIPaths[FuncDir]}"
-			if [[ -t 0 ]] {
-				vared -p "Directory for '_@webAPI' Zsh completion in \$fpath (leave empty to skip): " -c CompDir
-			}
-
-			if [[ -n "${CompDir}" ]] {
-				mkdir -p "${CompDir}"
-				local CompPath="${CompDir}/_@webAPI"
+				local CompPath="${FuncDir}/_@webAPI"
 				cat > "${CompPath}" <<-EOF
 					#compdef @webAPI
-					source "${WebAPIPaths[RepoDir]}/install.zsh"
+					() {
+						emulate -LR zsh -o extendedglob -o typesetsilent -o shortloops
+						(( \${+functions[@args:parse:generatePattern]} )) && return 0
+						local ArgParserURL='https://raw.githubusercontent.com/ES-SR/ZshTools/refs/heads/main/%40/args/%40args%3Aparse.zsh'
+						. <(2>/dev/null curl -fsSL "\${ArgParserURL}" --)
+					}
+					$(typeset -f _@webAPI)
 					_@webAPI "\${(@)argv}"
 				EOF
-				print "Installed Zsh completion: ${CompPath}"
-				if (( ! ${fpath[(Ie)${CompDir}]} )) {
-					print "Note: ${CompDir} is not currently in \$fpath."
+
+				print "Installed standalone '@webAPI' and '_@webAPI' into ${FuncDir}"
+
+				local AddFpath="yes"
+				if [[ -t 0 ]] {
+					vared -p "Add ${FuncDir} to \$fpath and autoload @webAPI? [yes/no]: " -c AddFpath
+				}
+
+				if [[ "${AddFpath}" == (#i)y(es|) ]] {
+					if (( ! ${fpath[(Ie)${FuncDir}]} )) {
+						fpath=( "${FuncDir}" "${(@)fpath}" )
+					}
+					autoload -Uz @webAPI _@webAPI
+					(( ${+functions[compdef]} )) && compdef _@webAPI @webAPI
+
+					local ZshRcFile="${ZDOTDIR:-${HOME}}/.zshrc"
+					if [[ -t 0 ]] {
+						vared -p "Zsh startup file to persist fpath & autoload (leave empty to skip): " -c ZshRcFile
+					}
+
+					if [[ -n "${ZshRcFile}" ]] {
+						if [[ ! -f "${ZshRcFile}" || "$(<"${ZshRcFile}")" != *"autoload -Uz @webAPI"* ]] {
+							cat >> "${ZshRcFile}" <<-EOF
+
+								# @webAPI CLI & completion
+								(( \${fpath[(Ie)${FuncDir}]} )) || fpath=( "${FuncDir}" "\${(@)fpath}" )
+								autoload -Uz @webAPI _@webAPI
+								(( \${+functions[compdef]} )) && compdef _@webAPI @webAPI
+							EOF
+							print "Added fpath & autoload configuration to ${ZshRcFile}"
+						} else {
+							print "${ZshRcFile} already contains @webAPI autoload configuration."
+						}
+					}
 				}
 			}
 		}
 
 		function __@webAPI:update {
-			local RepoTarget="${Directory[1]:-MistralWebAPI}"
+			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-MistralWebAPI}}"
 			__@webAPI:repo:ensure "${RepoTarget}"
 		}
 
 		function __@webAPI:start {
 			local CliPort="${Port[1]}" CliHost="${HostAddress[1]}" CliConfig="${ConfigurationFile[1]}"
-			local RepoTarget="${Directory[1]:-MistralWebAPI}"
-			if [[ ! -f "server.ts" ]] {
-				__@webAPI:repo:ensure "${RepoTarget}" || return 1
-			} else {
+			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-MistralWebAPI}}"
+			if [[ -n "${WebAPIPaths[RepoDir]}" && -f "${WebAPIPaths[RepoDir]}/server.ts" ]] {
+				: # RepoDir already resolved from install.conf
+			} elif [[ -f "server.ts" ]] {
 				WebAPIPaths[RepoDir]="${PWD}"
+			} else {
+				__@webAPI:repo:ensure "${RepoTarget}" || return 1
 			}
 
 			local StateFile="${WebAPIPaths[StateFile]}"
@@ -620,6 +667,8 @@ function _@webAPI {
 
 (( ${+functions[compdef]} )) && compdef _@webAPI @webAPI
 
-if [[ "${ZSH_EVAL_CONTEXT}" == "toplevel" ]] || (( ARGC )) {
+if (( ARGC )) {
 	@webAPI "${(@)argv}"
+} else {
+	@webAPI Install
 }
