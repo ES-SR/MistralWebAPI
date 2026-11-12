@@ -908,7 +908,24 @@ function setInFlight(busy) {
   });
 }
 
-async function send(op, form) {
+async function postBridgeResponse(payload) {
+  try {
+    const prov = activeProvider();
+    await fetch('/bridge/response', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: prov?.id ?? null,
+        operation: currentOp?.id ?? null,
+        ...payload,
+      }),
+    });
+  } catch {
+    /* bridge unavailable or offline */
+  }
+}
+
+async function send(op, form, requestId = null) {
   const prov = activeProvider();
   const cfg = getProviderConfig(settings, prov);
   const out = $('#response');
@@ -918,8 +935,10 @@ async function send(op, form) {
   try {
     params = collectParams(op, form);
   } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
     setStatus('Invalid input', false);
-    out.textContent = e instanceof Error ? e.message : String(e);
+    out.textContent = errMsg;
+    void postBridgeResponse({ requestId, ok: false, status: 'Invalid input', readable: errMsg, raw: errMsg });
     return;
   }
 
@@ -928,9 +947,11 @@ async function send(op, form) {
   const apiKey = override || getKey(prov.id) || '';
 
   if (!apiKey && prov.auth?.type !== 'none') {
+    const errMsg = `No API key available for ${prov.name}. Add your default key in Settings → API & Keys (requires acknowledging the security risks first), or enable secret form fields to enter a key per request.`;
     setStatus('No API key', false);
-    out.textContent = `No API key available for ${prov.name}. Add your default key in Settings → API & Keys (requires acknowledging the security risks first), or enable secret form fields to enter a key per request.`;
+    out.textContent = errMsg;
     $('#no-key-banner').hidden = false;
+    void postBridgeResponse({ requestId, ok: false, status: 'No API key', readable: errMsg, raw: errMsg });
     return;
   }
 
@@ -1016,6 +1037,18 @@ async function send(op, form) {
   } finally {
     setInFlight(false);
     activeAbort = null;
+    const finalCached = responseState.get(sKey);
+    if (finalCached) {
+      void postBridgeResponse({
+        requestId,
+        provider: prov.id,
+        operation: op.id,
+        ok: finalCached.ok,
+        status: finalCached.statusLabel,
+        readable: finalCached.extractedText,
+        raw: finalCached.rawJson,
+      });
+    }
   }
 }
 
@@ -1442,6 +1475,138 @@ function wireSettings() {
   window.addEventListener('storage', () => refreshKeyDependent());
 }
 
+function applyBridgeParams(op, params) {
+  if (!op || !params || typeof params !== 'object') return;
+  const form = document.querySelector('#op-form');
+  const existing = draftState.get(stateKeyFor(op)) || {};
+  const nextDraft = { ...existing };
+
+  for (const field of op.fields) {
+    if (field.type === 'secret' || field.type === 'file') continue;
+    if (!(field.name in params)) continue;
+    const rawVal = params[field.name];
+    const formatted =
+      field.type === 'json' && typeof rawVal === 'object' && rawVal !== null
+        ? JSON.stringify(rawVal, null, 2)
+        : field.type === 'boolean'
+          ? Boolean(rawVal)
+          : String(rawVal);
+
+    nextDraft[field.name] = formatted;
+    const el = form?.querySelector(`#f-${field.name}`);
+    if (el) {
+      if (field.type === 'boolean') el.checked = Boolean(rawVal);
+      else el.value = String(formatted);
+    }
+  }
+  draftState.set(stateKeyFor(op), nextDraft);
+}
+
+function initBridge() {
+  if (typeof EventSource === 'undefined') return;
+  const es = new EventSource('/bridge/events');
+
+  es.addEventListener('connected', () => {
+    void postBridgeResponse({
+      status: 'Connected',
+      ok: true,
+      readable: `Connected (${activeProvider().id}:${currentOp?.id ?? 'none'})`,
+    });
+  });
+
+  const BRIDGE_ACTIONS = {
+    select: async (cmd) => {
+      if (cmd.provider && cmd.provider !== settings.activeProviderId) {
+        switchProvider(cmd.provider);
+      }
+      if (cmd.operation) {
+        selectOp(cmd.operation);
+      }
+      if (cmd.params && currentOp) {
+        applyBridgeParams(currentOp, cmd.params);
+      }
+      await postBridgeResponse({
+        requestId: cmd.requestId,
+        ok: true,
+        status: 'Selected',
+        readable: `Selected ${activeProvider().id}:${currentOp?.id ?? 'none'}`,
+      });
+    },
+
+    fill: async (cmd) => {
+      if (cmd.provider && cmd.provider !== settings.activeProviderId) {
+        switchProvider(cmd.provider);
+      }
+      if (cmd.operation) {
+        selectOp(cmd.operation);
+      }
+      if (currentOp && cmd.params) {
+        applyBridgeParams(currentOp, cmd.params);
+      }
+      await postBridgeResponse({
+        requestId: cmd.requestId,
+        ok: true,
+        status: 'Filled',
+        readable: `Populated parameters on ${activeProvider().id}:${currentOp?.id ?? 'none'}`,
+        raw: draftState.get(stateKeyFor(currentOp)) || {},
+      });
+    },
+
+    inspect: async (cmd) => {
+      snapshotFormDraft(currentOp);
+      const cached = currentOp ? responseState.get(stateKeyFor(currentOp)) : null;
+      await postBridgeResponse({
+        requestId: cmd.requestId,
+        ok: true,
+        status: cached?.statusLabel ?? 'Ready',
+        readable: cached?.extractedText ?? '',
+        raw: {
+          provider: activeProvider().id,
+          operation: currentOp?.id ?? null,
+          draft: currentOp ? draftState.get(stateKeyFor(currentOp)) || {} : {},
+          lastResponse: cached ?? null,
+        },
+      });
+    },
+
+    execute: async (cmd) => {
+      if (cmd.provider && cmd.provider !== settings.activeProviderId) {
+        switchProvider(cmd.provider);
+      }
+      if (cmd.operation) {
+        selectOp(cmd.operation);
+      }
+      if (!currentOp) {
+        await postBridgeResponse({
+          requestId: cmd.requestId,
+          ok: false,
+          status: 'No operation',
+          readable: 'No operation selected to execute.',
+        });
+        return;
+      }
+      showView('api');
+      if (cmd.params) {
+        applyBridgeParams(currentOp, cmd.params);
+      }
+      const form = document.querySelector('#op-form');
+      if (form) {
+        await send(currentOp, form, cmd.requestId);
+      }
+    },
+  };
+
+  es.addEventListener('command', (ev) => {
+    try {
+      const cmd = JSON.parse(ev.data);
+      const handler = BRIDGE_ACTIONS[cmd.action] || BRIDGE_ACTIONS.execute;
+      void handler(cmd);
+    } catch {
+      /* ignore malformed event */
+    }
+  });
+}
+
 function init() {
   applySettings();
   populateProviderSelects();
@@ -1456,6 +1621,7 @@ function init() {
   refreshKeyDependent();
   renderMenu();
   if (currentOp) selectOp(currentOp.id);
+  initBridge();
 }
 
 init();

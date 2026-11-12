@@ -16,13 +16,21 @@ function @webAPI {
 			<<-"@webAPI:help.EOF"
 				Usage: @webAPI [Command] [Options]
 
-				Commands:
+				Server & Lifecycle Commands:
 				  Help                          Show this help message
 				  Install                       Clone/update repo and interactively install @webAPI (uses vared)
 				  Update                        Pull latest repository changes (git pull --ff-only)
 				  Start | Run                   Start the static server in the background and record its state
 				  Stop                          Stop the running background server recorded in XDG state/runtime
 				  Status                        Report whether the background server is running, its PID, and URL
+
+				Web-Terminal Bridge & JSON Commands:
+				  BridgeState                   Inspect connected browser UI clients, active provider/op, and state
+				  BridgeResponse                Fetch the latest response from the browser UI (pipeable to Extract)
+				  Select <provider> [op]        Switch the active provider and/or operation in the browser UI
+				  Fill <Key=Val...>             Populate form parameters in the active browser UI operation
+				  Send [prov:op] <Key=Val...>   Fill and execute an operation in the browser UI and print response
+				  Listen                        Stream live SSE events (commands & responses) from the bridge
 				  Extract <key...>              Extract Key=Value pairs from JSON on stdin by key name (no jq path needed)
 
 				Options (case-insensitive, supports --flag, -short, or flag=value):
@@ -189,6 +197,108 @@ function @webAPI {
 			return 1
 		}
 
+		function __@webAPI:bridge:url {
+			local StateFile="${WebAPIPaths[StateFile]}"
+			local Pid="" Host="127.0.0.1" Port="3000" RepoDir="${PWD}"
+			local CfgFile="${ConfigurationFile[1]:-${PWD}/config.conf}"
+			if [[ -f "${CfgFile}" ]] {
+				. <(print -rl -- "${(@)${(@f)$(<"${CfgFile}")}//[[:space:]]/}")
+			}
+			if [[ -f "${StateFile}" ]] {
+				. <(print -rl -- "${(@)${(@f)$(<"${StateFile}")}//[[:space:]]/}")
+			}
+			local BindHost="${HostAddress[1]:-${Host}}"
+			local BindPort="${Port[1]:-${Port}}"
+			print -r -- "http://${BindHost}:${BindPort}"
+		}
+
+		function __@webAPI:bridge:params {
+			local -a Pairs=()
+			local Item Key Val EscVal
+			for Item ( "${(@)argv}" ) {
+				if [[ "${Item}" == *"="* ]] {
+					Key="${Item%%=*}"
+					Val="${Item#*=}"
+					if [[ "${Val}" == (true|false|<->|<->.<->) ]] {
+						Pairs+=( "\"${Key}\":${Val}" )
+					} else {
+						EscVal="${${Val//\\/\\\\}//\"/\\\"}"
+						Pairs+=( "\"${Key}\":\"${EscVal}\"" )
+					}
+				}
+			}
+			print -r -- "{${(j.,.)Pairs}}"
+		}
+
+		function __@webAPI:bridge:state {
+			local BridgeURL="$(__@webAPI:bridge:url)"
+			curl -fsSL "${BridgeURL}/bridge/state"
+			print ""
+		}
+
+		function __@webAPI:bridge:response {
+			local BridgeURL="$(__@webAPI:bridge:url)"
+			local StateJson="$(curl -fsSL "${BridgeURL}/bridge/state")"
+			if (( ${#Extract} )) {
+				print -r -- "${StateJson}" | __@webAPI:json:extract "${(@)Extract}"
+			} else {
+				print -r -- "${StateJson}"
+			}
+		}
+
+		function __@webAPI:bridge:select {
+			local BridgeURL="$(__@webAPI:bridge:url)"
+			local TargetProv="${1}" TargetOp=""
+			local -a RestArgs=( "${(@)argv[2,-1]}" )
+			if [[ "${TargetProv}" == *":"* ]] {
+				TargetOp="${TargetProv#*:}"
+				TargetProv="${TargetProv%%:*}"
+			} elif (( ${#RestArgs} )) && [[ "${RestArgs[1]}" != *"="* ]] {
+				TargetOp="${RestArgs[1]}"
+				RestArgs=( "${(@)RestArgs[2,-1]}" )
+			}
+			local ParamsJson="$(__@webAPI:bridge:params "${(@)RestArgs}")"
+			local Payload="{\"action\":\"select\",\"provider\":\"${TargetProv}\",\"operation\":\"${TargetOp}\",\"params\":${ParamsJson}}"
+			curl -fsSL -X POST -H "Content-Type: application/json" -d "${Payload}" "${BridgeURL}/bridge/command"
+			print ""
+		}
+
+		function __@webAPI:bridge:fill {
+			local BridgeURL="$(__@webAPI:bridge:url)"
+			local ParamsJson="$(__@webAPI:bridge:params "${(@)argv}")"
+			local Payload="{\"action\":\"fill\",\"params\":${ParamsJson}}"
+			curl -fsSL -X POST -H "Content-Type: application/json" -d "${Payload}" "${BridgeURL}/bridge/command"
+			print ""
+		}
+
+		function __@webAPI:bridge:send {
+			local BridgeURL="$(__@webAPI:bridge:url)"
+			local TargetProv="" TargetOp=""
+			local -a ParamArgs=( "${(@)argv}" )
+			if (( ${#ParamArgs} )) && [[ "${ParamArgs[1]}" != *"="* ]] {
+				if [[ "${ParamArgs[1]}" == *":"* ]] {
+					TargetProv="${ParamArgs[1]%%:*}"
+					TargetOp="${ParamArgs[1]#*:}"
+				} else {
+					TargetOp="${ParamArgs[1]}"
+				}
+				ParamArgs=( "${(@)ParamArgs[2,-1]}" )
+			}
+			local ParamsJson="$(__@webAPI:bridge:params "${(@)ParamArgs}")"
+			local Payload="{\"action\":\"execute\",\"wait\":true,\"provider\":\"${TargetProv}\",\"operation\":\"${TargetOp}\",\"params\":${ParamsJson}}"
+			local RespJson="$(curl -fsSL -X POST -H "Content-Type: application/json" -d "${Payload}" "${BridgeURL}/bridge/command")"
+			if (( ${#Extract} )) {
+				print -r -- "${RespJson}" | __@webAPI:json:extract "${(@)Extract}"
+			} else {
+				print -r -- "${RespJson}"
+			}
+		}
+
+		function __@webAPI:bridge:listen {
+			local BridgeURL="$(__@webAPI:bridge:url)"
+			curl -sSN "${BridgeURL}/bridge/events"
+		}
+
 		function __@webAPI:json:extract {
 			local JsonInput
 			JsonInput="$(<&0)"
@@ -220,6 +330,12 @@ function @webAPI {
 			Run \
 			Stop \
 			Status \
+			Bridge.State \
+			Bridge.Resp.onse \
+			Select:+ \
+			Fill:+ \
+			Send:+ \
+			Listen \
 			Extract:+ \
 			Port:1 \
 			Host.Addr.ess:1 \
@@ -235,12 +351,18 @@ function @webAPI {
 			return 0
 		}
 
-		(( Install ))        && { __@webAPI:install }
-		(( Update ))         && { __@webAPI:update }
-		(( Start || Run ))   && { __@webAPI:start }
-		(( Stop ))           && { __@webAPI:stop }
-		(( Status ))         && { __@webAPI:status }
-		(( ${#Extract} ))    && { __@webAPI:json:extract "${(@)Extract}" }
+		(( Install ))          && { __@webAPI:install }
+		(( Update ))           && { __@webAPI:update }
+		(( Start || Run ))     && { __@webAPI:start }
+		(( Stop ))             && { __@webAPI:stop }
+		(( Status ))           && { __@webAPI:status }
+		(( BridgeState ))      && { __@webAPI:bridge:state }
+		(( BridgeResponse ))   && { __@webAPI:bridge:response }
+		(( ${#Select} ))       && { __@webAPI:bridge:select "${(@)Select}" }
+		(( ${#Fill} ))         && { __@webAPI:bridge:fill "${(@)Fill}" }
+		(( ${#Send} ))         && { __@webAPI:bridge:send "${(@)Send}" }
+		(( Listen ))           && { __@webAPI:bridge:listen }
+		(( ${#Extract} && ! BridgeResponse && ! ${#Send} )) && { __@webAPI:json:extract "${(@)Extract}" }
 	} always {
 		unfunction \
 			__@webAPI:help \
@@ -251,6 +373,14 @@ function @webAPI {
 			__@webAPI:start \
 			__@webAPI:stop \
 			__@webAPI:status \
+			__@webAPI:bridge:url \
+			__@webAPI:bridge:params \
+			__@webAPI:bridge:state \
+			__@webAPI:bridge:response \
+			__@webAPI:bridge:select \
+			__@webAPI:bridge:fill \
+			__@webAPI:bridge:send \
+			__@webAPI:bridge:listen \
 			__@webAPI:json:extract \
 			2>/dev/null
 	}

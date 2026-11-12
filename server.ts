@@ -142,13 +142,207 @@ function send(res, status, body, type) {
   res.end(body);
 }
 
+function sendJson(res, status, payload) {
+  send(res, status, JSON.stringify(payload, null, 2), 'application/json; charset=utf-8');
+}
+
+function readJsonBody(req, maxBytes = 2 * 1024 * 1024) {
+  return new Promise((resolveBody, rejectBody) => {
+    const chunks = [];
+    let total = 0;
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        rejectBody(new Error('Payload too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8').trim();
+      if (!raw) {
+        resolveBody({});
+        return;
+      }
+      try {
+        resolveBody(JSON.parse(raw));
+      } catch {
+        rejectBody(new Error('Invalid JSON payload'));
+      }
+    });
+    req.on('error', rejectBody);
+  });
+}
+
+// ── Loopback Web-Terminal Bridge (never touches or stores API keys) ──────
+const bridgeClients = new Set();
+const pendingWaiters = new Map();
+const bridgeState = {
+  activeProvider: null,
+  activeOperation: null,
+  lastCommand: null,
+  lastResponse: null,
+};
+
+function broadcastSse(eventName, payload) {
+  const frame = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const client of bridgeClients) {
+    try {
+      client.write(frame);
+    } catch {
+      bridgeClients.delete(client);
+    }
+  }
+}
+
+function sanitizeParams(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {};
+  const clean = { ...obj };
+  delete clean.apiKey;
+  delete clean.api_key;
+  return clean;
+}
+
+const BRIDGE_ROUTES = {
+  'GET /bridge/events': (req, res) => {
+    res.writeHead(200, {
+      ...HEADERS,
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Connection': 'keep-alive',
+    });
+    res.write(`event: connected\ndata: ${JSON.stringify({ ok: true, clients: bridgeClients.size + 1 })}\n\n`);
+    bridgeClients.add(res);
+    req.on('close', () => {
+      bridgeClients.delete(res);
+    });
+  },
+
+  'GET /bridge/state': (_req, res) => {
+    sendJson(res, 200, {
+      ok: true,
+      connectedClients: bridgeClients.size,
+      ...bridgeState,
+    });
+  },
+
+  'POST /bridge/command': async (req, res) => {
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (err) {
+      sendJson(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+
+    const requestId = String(body.requestId || `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+    const command = {
+      requestId,
+      action: String(body.action || 'execute'),
+      provider: body.provider ? String(body.provider) : null,
+      operation: body.operation ? String(body.operation) : null,
+      params: sanitizeParams(body.params),
+      timestamp: new Date().toISOString(),
+    };
+
+    bridgeState.lastCommand = command;
+    broadcastSse('command', command);
+
+    const shouldWait = Boolean(body.wait) && bridgeClients.size > 0;
+    if (!shouldWait) {
+      sendJson(res, 200, {
+        ok: true,
+        dispatched: true,
+        connectedClients: bridgeClients.size,
+        requestId,
+        command,
+      });
+      return;
+    }
+
+    const timeoutMs = Math.min(Math.max(Number(body.timeoutMs) || 15000, 100), 120000);
+    const reply = await new Promise((resolveWait) => {
+      const timer = setTimeout(() => {
+        pendingWaiters.delete(requestId);
+        resolveWait({ timedOut: true });
+      }, timeoutMs);
+      pendingWaiters.set(requestId, {
+        resolve: (data) => {
+          clearTimeout(timer);
+          pendingWaiters.delete(requestId);
+          resolveWait(data);
+        },
+      });
+    });
+
+    sendJson(res, 200, {
+      ok: true,
+      dispatched: true,
+      connectedClients: bridgeClients.size,
+      requestId,
+      reply,
+    });
+  },
+
+  'POST /bridge/response': async (req, res) => {
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (err) {
+      sendJson(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+
+    if (body.provider) bridgeState.activeProvider = String(body.provider);
+    if (body.operation) bridgeState.activeOperation = String(body.operation);
+
+    const record = {
+      requestId: body.requestId ? String(body.requestId) : null,
+      provider: body.provider ? String(body.provider) : bridgeState.activeProvider,
+      operation: body.operation ? String(body.operation) : bridgeState.activeOperation,
+      status: body.status ? String(body.status) : 'OK',
+      ok: body.ok !== undefined ? Boolean(body.ok) : true,
+      readable: typeof body.readable === 'string' ? body.readable : '',
+      raw: body.raw ?? null,
+      timestamp: new Date().toISOString(),
+    };
+
+    bridgeState.lastResponse = record;
+    broadcastSse('response', record);
+
+    if (record.requestId && pendingWaiters.has(record.requestId)) {
+      pendingWaiters.get(record.requestId).resolve(record);
+    }
+
+    sendJson(res, 200, { ok: true });
+  },
+};
+
+const isLoopbackRemote = (addr = '') =>
+  addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1' || addr.startsWith('127.');
+
 const server = createServer(async (req, res) => {
   try {
+    const urlPath = new URL(req.url ?? '/', 'http://localhost').pathname;
+
+    if (urlPath.startsWith('/bridge/')) {
+      if (!isLoopbackRemote(req.socket?.remoteAddress)) {
+        sendJson(res, 403, { ok: false, error: 'Bridge endpoints are restricted to loopback clients.' });
+        return;
+      }
+      const routeHandler = BRIDGE_ROUTES[`${req.method} ${urlPath}`];
+      if (!routeHandler) {
+        sendJson(res, 404, { ok: false, error: `Unknown bridge endpoint: ${req.method} ${urlPath}` });
+        return;
+      }
+      await routeHandler(req, res);
+      return;
+    }
+
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       send(res, 405, 'Method not allowed', 'text/plain; charset=utf-8');
       return;
     }
-    const urlPath = new URL(req.url ?? '/', 'http://localhost').pathname;
     const rel = urlPath === '/' ? 'index.html' : urlPath.slice(1);
     const fp = normalize(join(PUBLIC_DIR, rel));
     if (!fp.startsWith(PUBLIC_DIR)) {

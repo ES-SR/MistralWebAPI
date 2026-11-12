@@ -51,7 +51,15 @@ Or use [`install.zsh`](install.zsh) (the `@webAPI` Zsh CLI tool powered by `@arg
 ./install.zsh Start Port=8080      # start background server and record state in XDG runtime/state dir
 ./install.zsh Status               # check running server PID and URL
 ./install.zsh Stop                 # stop background server
-./install.zsh Extract content id < response.json   # extract Key=Value pairs from JSON without jq
+
+# Loopback Web-Terminal Bridge (never touches or transmits API keys):
+./install.zsh BridgeState                                          # inspect connected browser tabs & active op
+./install.zsh Select mistral chat.complete                         # switch provider & operation in the browser UI
+./install.zsh Fill model=mistral-small-latest temperature=0.3      # populate form fields in the browser UI
+./install.zsh Send mistral:chat.complete model=mistral-small-latest --extract content
+./install.zsh BridgeResponse --extract content id                  # fetch latest browser response & extract keys
+./install.zsh Listen                                               # stream live SSE events from the bridge
+./install.zsh Extract content id < response.json                   # extract Key=Value pairs from JSON without jq
 ```
 
 > **Security note on `--host`:** The server defaults to loopback (`127.0.0.1`). If you bind to a non-loopback interface (e.g. `0.0.0.0` or a LAN IP), the server logs a warning — always place a TLS reverse proxy in front if exposing beyond localhost.

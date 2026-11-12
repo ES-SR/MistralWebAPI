@@ -285,6 +285,50 @@ try {
   ok('path traversal blocked', r.status !== 200);
   r = await get('/does-not-exist');
   ok('GET unknown → 404', r.status === 404);
+
+  // Bridge endpoints
+  const bState0 = await fetch(base + '/bridge/state').then((res) => res.json());
+  ok('GET /bridge/state → 200 ok', bState0.ok === true && typeof bState0.connectedClients === 'number');
+
+  const bCmd = await fetch(base + '/bridge/command', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestId: 'test_req_1',
+      action: 'fill',
+      provider: 'mistral',
+      operation: 'chat.complete',
+      params: { model: 'mistral-small-latest', apiKey: 'should-be-stripped' },
+    }),
+  }).then((res) => res.json());
+  ok(
+    'POST /bridge/command dispatches and strips apiKey from params',
+    bCmd.ok === true &&
+      bCmd.command?.provider === 'mistral' &&
+      bCmd.command?.params?.model === 'mistral-small-latest' &&
+      !('apiKey' in (bCmd.command?.params ?? {})),
+  );
+
+  const bResp = await fetch(base + '/bridge/response', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestId: 'test_req_1',
+      provider: 'mistral',
+      operation: 'chat.complete',
+      status: 'OK (200)',
+      ok: true,
+      readable: 'Hello from bridge',
+      raw: '{"id":"cmpl-1","content":"Hello from bridge"}',
+    }),
+  }).then((res) => res.json());
+  const bState1 = await fetch(base + '/bridge/state').then((res) => res.json());
+  ok(
+    'POST /bridge/response updates bridgeState.lastResponse',
+    bResp.ok === true &&
+      bState1.activeProvider === 'mistral' &&
+      bState1.lastResponse?.readable === 'Hello from bridge',
+  );
 } catch (e) {
   ok('server reachable: ' + e.message, false);
 } finally {
