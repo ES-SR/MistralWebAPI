@@ -179,3 +179,112 @@ export function loadCustomProviders() {
 export function saveCustomProviders(list) {
   localStorage.setItem(CUSTOM_PROVIDERS_KEY, JSON.stringify(list));
 }
+
+const SETTINGS_KV_SPEC = [
+  ['Theme', 'theme', 'string'],
+  ['PrimaryColor', 'colors.primary', 'string'],
+  ['BgColor', 'colors.bg', 'string'],
+  ['SurfaceColor', 'colors.surface', 'string'],
+  ['SurfaceAltColor', 'colors.surfaceAlt', 'string'],
+  ['TextColor', 'colors.text', 'string'],
+  ['MutedColor', 'colors.muted', 'string'],
+  ['BorderColor', 'colors.border', 'string'],
+  ['OkColor', 'colors.ok', 'string'],
+  ['ErrColor', 'colors.err', 'string'],
+  ['WarnColor', 'colors.warn', 'string'],
+  ['InfoColor', 'colors.info', 'string'],
+  ['FontFamily', 'fontFamily', 'string'],
+  ['FontMono', 'fontMono', 'string'],
+  ['FontSize', 'fontSize', 'number'],
+  ['LineHeight', 'lineHeight', 'number'],
+  ['Radius', 'radius', 'number'],
+  ['BorderWidth', 'borderWidth', 'number'],
+  ['SidebarSide', 'sidebarSide', 'string'],
+  ['SidebarWidth', 'sidebarWidth', 'number'],
+  ['SidebarPad', 'sidebarPad', 'number'],
+  ['ResponsePosition', 'responsePosition', 'string'],
+  ['ResponseSplitPct', 'responseSplitPct', 'number'],
+  ['ResponseMinHeight', 'responseMinHeight', 'number'],
+  ['ResponseMaxVh', 'responseMaxVh', 'number'],
+  ['ActionsPosition', 'actionsPosition', 'string'],
+  ['MainPad', 'mainPad', 'number'],
+  ['PanelPad', 'panelPad', 'number'],
+  ['PanelGap', 'panelGap', 'number'],
+  ['FieldGap', 'fieldGap', 'number'],
+  ['LabelGap', 'labelGap', 'number'],
+  ['InputPadY', 'inputPadY', 'number'],
+  ['InputPadX', 'inputPadX', 'number'],
+  ['NumFieldWidth', 'numFieldWidth', 'number'],
+  ['SelectFieldWidth', 'selectFieldWidth', 'number'],
+  ['TextFieldBasis', 'textFieldBasis', 'number'],
+  ['ActiveProviderId', 'activeProviderId', 'string'],
+  ['DefaultModel', 'defaultModel', 'string'],
+  ['DefaultTemperature', 'defaultTemperature', 'string'],
+  ['DefaultMaxTokens', 'defaultMaxTokens', 'string'],
+  ['EnableSecretFields', 'enableSecretFields', 'boolean'],
+  ['PersistKey', 'persistKey', 'boolean'],
+];
+
+export function serializeSettingsConf(s = loadPrefs()) {
+  const lines = ['# Web API Playground Settings (Key = Value)'];
+  for (const [confKey, path] of SETTINGS_KV_SPEC) {
+    const val = path.startsWith('colors.') ? s.colors?.[path.slice(7)] : s[path];
+    if (val !== undefined) lines.push(`${confKey} = ${val}`);
+  }
+  for (const [provId, cfg] of Object.entries(s.providerConfigs ?? {})) {
+    if (cfg.baseUrl) lines.push(`Provider.${provId}.BaseUrl = ${cfg.baseUrl}`);
+    if (cfg.defaultModel) lines.push(`Provider.${provId}.DefaultModel = ${cfg.defaultModel}`);
+    if (cfg.defaultTemperature !== undefined && cfg.defaultTemperature !== '') {
+      lines.push(`Provider.${provId}.DefaultTemperature = ${cfg.defaultTemperature}`);
+    }
+    if (cfg.defaultMaxTokens !== undefined && cfg.defaultMaxTokens !== '') {
+      lines.push(`Provider.${provId}.DefaultMaxTokens = ${cfg.defaultMaxTokens}`);
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
+export function parseSettingsConf(text, base = loadPrefs()) {
+  const next = structuredClone(base);
+  const specByLower = new Map(SETTINGS_KV_SPEC.map((entry) => [entry[0].toLowerCase(), entry]));
+
+  for (const rawLine of String(text).split(/\r?\n/)) {
+    const clean = rawLine.replace(/^\s*#.*$/, '').trim();
+    if (!clean) continue;
+    const eqIdx = clean.indexOf('=');
+    if (eqIdx === -1) continue;
+    const rawKey = clean.slice(0, eqIdx).trim();
+    const rawVal = clean.slice(eqIdx + 1).trim();
+
+    const provMatch = rawKey.match(/^Provider\.([^.]+)\.(\w+)$/i);
+    if (provMatch) {
+      const [, provId, field] = provMatch;
+      const fl = field.toLowerCase();
+      const patch = {};
+      if (fl === 'baseurl') patch.baseUrl = rawVal;
+      if (fl === 'defaultmodel') patch.defaultModel = rawVal;
+      if (fl === 'defaulttemperature') patch.defaultTemperature = rawVal;
+      if (fl === 'defaultmaxtokens') patch.defaultMaxTokens = rawVal;
+      setProviderConfig(next, provId, patch);
+      continue;
+    }
+
+    const spec = specByLower.get(rawKey.toLowerCase());
+    if (!spec) continue;
+    const [, path, type] = spec;
+    let parsedVal = rawVal;
+    if (type === 'number') {
+      const n = Number(rawVal);
+      if (Number.isNaN(n)) continue;
+      parsedVal = n;
+    } else if (type === 'boolean') {
+      parsedVal = rawVal === 'true' || rawVal === '1';
+    }
+    if (path.startsWith('colors.')) {
+      next.colors[path.slice(7)] = parsedVal;
+    } else {
+      next[path] = parsedVal;
+    }
+  }
+  return next;
+}

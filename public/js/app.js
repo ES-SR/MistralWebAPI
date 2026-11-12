@@ -15,6 +15,8 @@ import {
   migrateKey,
   loadCustomProviders,
   saveCustomProviders,
+  serializeSettingsConf,
+  parseSettingsConf,
 } from './store.js';
 
 const FONT_OPTIONS = {
@@ -1246,6 +1248,72 @@ function wireSettings() {
     applySettings();
     syncAppearanceForm();
     if (currentOp) renderForm(currentOp);
+  });
+
+  const downloadBlob = (filename, content, type) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  $('#settings-export-conf').addEventListener('click', () => {
+    downloadBlob('webapi-settings.conf', serializeSettingsConf(settings), 'text/plain;charset=utf-8');
+  });
+
+  $('#settings-import-conf').addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const text = await f.text();
+    settings = parseSettingsConf(text, settings);
+    applySettings();
+    populateProviderSelects();
+    syncAppearanceForm();
+    refreshKeyDependent();
+    if (currentOp) renderForm(currentOp);
+    $('#backup-status').textContent = `Imported settings from ${f.name} ✓`;
+    e.target.value = '';
+  });
+
+  $('#workspace-export-json').addEventListener('click', () => {
+    snapshotFormDraft(currentOp);
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      parameters: Object.fromEntries(draftState.entries()),
+      responses: Object.fromEntries(responseState.entries()),
+      customProviders,
+    };
+    downloadBlob('webapi-workspace.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+  });
+
+  $('#workspace-import-json').addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const parsed = JSON.parse(await f.text());
+      if (parsed.parameters && typeof parsed.parameters === 'object') {
+        for (const [k, v] of Object.entries(parsed.parameters)) draftState.set(k, v);
+      }
+      if (parsed.responses && typeof parsed.responses === 'object') {
+        for (const [k, v] of Object.entries(parsed.responses)) responseState.set(k, v);
+      }
+      if (Array.isArray(parsed.customProviders)) {
+        customProviders = parsed.customProviders;
+        saveCustomProviders(customProviders);
+        populateProviderSelects();
+        renderCustomProvidersList();
+      }
+      renderMenu();
+      if (currentOp) renderForm(currentOp);
+      $('#backup-status').textContent = `Imported workspace data from ${f.name} ✓`;
+    } catch (err) {
+      $('#backup-status').textContent = `Import error: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    e.target.value = '';
   });
 
   // ── API & Keys section wiring ─────────────────────────────────────────

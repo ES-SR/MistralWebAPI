@@ -3,7 +3,7 @@
 A minimal, zero-dependency, framework-free web UI for exploring LLM and REST APIs (**Mistral AI**, **OpenAI / OpenAI-Compatible**, **Anthropic**, **Google Gemini**, and custom **OpenAPI 3.x / Swagger** specifications) directly from your browser.
 
 **Architecture:**
-- **Static Server ([`server.ts`](server.ts)):** Serves only static files from `public/` (bound to `127.0.0.1` by default, with `Content-Security-Policy`, `nosniff`, and `no-store` headers). **Your API keys never touch the server** — they are entered in Settings, stored only in your browser (`sessionStorage` by default, or opt-in `localStorage`), and attached to requests directly by your browser.
+- **Static Server ([`server.ts`](server.ts)):** Serves only static files from `public/` (bound to `127.0.0.1:3000` by default, with `Content-Security-Policy`, `nosniff`, and `no-store` headers). **Your API keys never touch the server** — they are entered in Settings, stored only in your browser (`sessionStorage` by default, or opt-in `localStorage`), and attached to requests directly by your browser.
 - **Zero Build / Zero Dependencies:** Uses native browser ES modules (`public/js/*.js`) and native CSS with selector nesting and CSS custom properties (`public/styles.css`). No `npm install`, bundler, or preprocessor step is required.
 - **Declarative HTTP + SSE Engine ([`public/js/executor.js`](public/js/executor.js)):** Replaces SDK-specific switch statements with a unified `fetch` + Server-Sent Events (SSE) executor that handles path parameters, query strings, JSON bodies, multipart file uploads, cURL generation, and live streaming text extraction.
 
@@ -24,31 +24,59 @@ A minimal, zero-dependency, framework-free web UI for exploring LLM and REST API
   - Switching between operations or Settings preserves your form drafts and responses in memory.
   - Response panel switches between **Raw JSON**, **Extracted / Text**, and **Request & cURL**, with one-click Copy, Clear, and in-flight Cancel.
 
-## Run Locally
+## Configuration & Running Locally
 
-Start the static server directly with Node (no `npm install` or build step needed):
+Server defaults are stored in [`config.conf`](config.conf) in plain-text `Key = Value` format (no environment variables required):
 
-```bash
-node server.ts
+```ini
+Host = 127.0.0.1
+Port = 3000
 ```
 
-Or use `./install.sh --run` to pull/clone and start the server in the background.
+Start the static server directly with Node (no `npm install` or build step needed). CLI flags follow the `@args:parse` style (case-insensitive, supporting `--flag value`, `flag=value`, or short flags) and override `config.conf`:
+
+```bash
+node server.ts                                    # reads ./config.conf (default: http://127.0.0.1:3000)
+node server.ts Port=8080                          # custom port (or -p 8080, --port 8080)
+node server.ts Port=0                             # random free OS-assigned port
+node server.ts HostAddress=127.0.0.1 Port=3000    # explicit bind address (or -ha, --host-address)
+node server.ts ConfigurationFile=./my.conf        # custom Key=Value config file (or -cf, --configuration-file)
+node server.ts Help                               # show CLI options (or -h, --help)
+```
+
+Or use [`install.zsh`](install.zsh) (the `@webAPI` Zsh CLI tool powered by `@args:parse` from `ES-SR/ZshTools`) or [`install.sh`](install.sh) (Bash):
+
+```zsh
+./install.zsh Install              # interactively prompt (via vared) for repo & XDG/$path wrapper dir
+./install.zsh Start Port=8080      # start background server and record state in XDG runtime/state dir
+./install.zsh Status               # check running server PID and URL
+./install.zsh Stop                 # stop background server
+./install.zsh Extract content id < response.json   # extract Key=Value pairs from JSON without jq
+```
+
+> **Security note on `--host`:** The server defaults to loopback (`127.0.0.1`). If you bind to a non-loopback interface (e.g. `0.0.0.0` or a LAN IP), the server logs a warning — always place a TLS reverse proxy in front if exposing beyond localhost.
 
 Open <http://127.0.0.1:3000>, select your provider, go to **Settings → API & Keys**, acknowledge the security note, and save your API key.
 
-## CI (automated checks)
+## CI & Smoke / Unit Tests
 
-A GitHub Actions workflow (`.github/workflows/ci.yml`) runs automatically on every pull request and every push to the default branch. It needs **no setup from you** — for a public repo, Actions is already enabled. It:
+A GitHub Actions workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs automatically on every pull request and every push to `trunk`. It runs `npm run smoke` ([`scripts/smoke.mjs`](scripts/smoke.mjs)), which:
 
-1. syntax-checks every JS/TS file (`node --check`),
-2. boots `server.ts` on a test port and verifies the pages/assets serve with the security headers, `/api/*` returns 404, and path traversal is blocked (`npm run smoke`, see `scripts/smoke.mjs`).
+1. Syntax-checks [`server.ts`](server.ts) and every module under `public/js/` (`node --check`).
+2. Unit-tests the built-in provider catalogs, `buildRequest` (path interpolation, `snake_case` conversion, `bodyRoot` flattening, auth headers, and API key masking in cURL output), SSE stream text extraction, and the OpenAPI 3.x schema importer (`parseOpenApiSpec`).
+3. Boots [`server.ts`](server.ts) on an ephemeral OS-assigned port (`--port 0`), waits for the stdout readiness event, and verifies all static assets, security headers (`Content-Security-Policy`, `nosniff`, `no-store`), `405` method restrictions, `/api/*` `404`, and path-traversal blocking.
 
-**How to see the results:** open the PR (or repo → *Actions* tab) → the run shows green ✓ or red ✗ with logs. If your organization has Actions disabled, enable it once via repo *Settings → Actions → General → "Allow all actions"*. To run the exact same checks locally at any time: `npm run smoke` (needs Node ≥ 22.18, no install required).
+To run the full suite locally at any time (no install required):
+
+```bash
+npm run smoke
+```
 
 ## Project Layout
 
 ```
-server.ts                        # Dependency-free static HTTP server (127.0.0.1, CSP/nosniff/no-store)
+server.ts                        # Dependency-free static HTTP server (127.0.0.1:3000 default, --port/--host CLI)
+scripts/smoke.mjs                # Zero-dependency syntax, unit, and live HTTP smoke test suite
 public/index.html                # App shell (Sidebar, API workspace, Settings sections)
 public/styles.css                # Native CSS with nesting and runtime CSS custom properties
 public/js/app.js                 # UI controller, menu, form builder, state caching, settings wiring

@@ -261,6 +261,22 @@
               <input id="set-color-info" type="color" />
             </div>
 
+            <h3 class="settings-subhead">Backup &amp; Restore</h3>
+            <div class="setting-row">
+              <label>Settings (Key = Value)</label>
+              <button id="settings-export-conf" class="btn-secondary" type="button">Export settings (.conf)</button>
+              <label for="settings-import-conf" class="btn-secondary" style="width:auto;flex:0 0 auto;margin:0;cursor:pointer;">Import settings (.conf)</label>
+              <input id="settings-import-conf" type="file" accept=".conf,.txt,.ini,.toml" hidden />
+              <span class="hint">Plain-text <code>Key = Value</code> format for appearance, layout, and provider defaults.</span>
+            </div>
+            <div class="setting-row">
+              <label>Saved Params &amp; Responses</label>
+              <button id="workspace-export-json" class="btn-secondary" type="button">Export params &amp; responses (.json)</button>
+              <label for="workspace-import-json" class="btn-secondary" style="width:auto;flex:0 0 auto;margin:0;cursor:pointer;">Import params &amp; responses (.json)</label>
+              <input id="workspace-import-json" type="file" accept=".json,application/json" hidden />
+              <span class="hint" id="backup-status">JSON snapshot of saved form parameters, responses, and custom OpenAPI providers.</span>
+            </div>
+
             <div class="setting-row">
               <label for="settings-reset">Reset defaults</label>
               <button id="settings-reset" class="btn-secondary" type="button">Reset appearance &amp; layout to defaults</button>
