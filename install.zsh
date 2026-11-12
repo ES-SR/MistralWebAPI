@@ -113,6 +113,25 @@ function @webAPI {
 					print "Note: ${WrapperDir} is not currently in \$path."
 				}
 			}
+
+			local CompDir="${WebAPIPaths[FuncDir]}"
+			if [[ -t 0 ]] {
+				vared -p "Directory for '_@webAPI' Zsh completion in \$fpath (leave empty to skip): " -c CompDir
+			}
+
+			if [[ -n "${CompDir}" ]] {
+				mkdir -p "${CompDir}"
+				local CompPath="${CompDir}/_@webAPI"
+				cat > "${CompPath}" <<-EOF
+					#compdef @webAPI
+					source "${WebAPIPaths[RepoDir]}/install.zsh"
+					_@webAPI "\${(@)argv}"
+				EOF
+				print "Installed Zsh completion: ${CompPath}"
+				if (( ! ${fpath[(Ie)${CompDir}]} )) {
+					print "Note: ${CompDir} is not currently in \$fpath."
+				}
+			}
 		}
 
 		function __@webAPI:update {
@@ -385,6 +404,221 @@ function @webAPI {
 			2>/dev/null
 	}
 }
+
+function _@webAPI {
+	emulate -LR zsh -o extendedglob -o typesetsilent -o shortloops
+	{
+		function __@webAPI:complete:commands {
+			local -a Commands=(
+				'Help:Show help message'
+				'Install:Clone/update repo and interactively install @webAPI (uses vared)'
+				'Update:Pull latest repository changes (git pull --ff-only)'
+				'Start:Start the static server in the background and record its state'
+				'Run:Start the static server in the background and record its state'
+				'Stop:Stop the running background server recorded in XDG state/runtime'
+				'Status:Report whether the background server is running, its PID, and URL'
+				'BridgeState:Inspect connected browser UI clients, active provider/op, and state'
+				'BridgeResponse:Fetch the latest response from the browser UI'
+				'Select:Switch the active provider and/or operation in the browser UI'
+				'Fill:Populate form parameters in the active browser UI operation'
+				'Send:Fill and execute an operation in the browser UI and print response'
+				'Listen:Stream live SSE events (commands & responses) from the bridge'
+				'Extract:Extract Key=Value pairs from JSON on stdin by key name'
+			)
+			local -a Options=(
+				'--port:Port override for server.ts (0-65535)'
+				'--host-address:Bind address override for server.ts (default 127.0.0.1)'
+				'--configuration-file:Path to Key=Value config file (default ./config.conf)'
+				'--directory:Repository directory override'
+			)
+			_describe -t commands '@webAPI command' Commands
+			_describe -t options '@webAPI option' Options
+		}
+
+		function __@webAPI:complete:port {
+			local -a Ports=(
+				'3000:Default playground port'
+				'8080:Alternate HTTP development port'
+				'8000:Alternate local server port'
+				'0:OS-assigned ephemeral port'
+			)
+			_describe -t ports 'port' Ports
+		}
+
+		function __@webAPI:complete:host {
+			local -a Hosts=(
+				'127.0.0.1:IPv4 loopback (default)'
+				'localhost:Localhost hostname'
+				'::1:IPv6 loopback'
+				'0.0.0.0:All IPv4 interfaces (use TLS proxy)'
+			)
+			_describe -t hosts 'bind address' Hosts
+		}
+
+		function __@webAPI:complete:config {
+			_files -g '*.conf(-.)' -g '*(-.)'
+		}
+
+		function __@webAPI:complete:directory {
+			_files -/
+		}
+
+		function __@webAPI:complete:targets {
+			local -a Providers=(
+				'mistral:Mistral AI API'
+				'openai:OpenAI / OpenAI-compatible API'
+				'anthropic:Anthropic Messages API'
+				'gemini:Google Gemini API'
+			)
+			local -a Targets=(
+				'mistral:chat.complete:Mistral chat completion'
+				'mistral:chat.stream:Mistral streaming chat completion'
+				'mistral:fim.complete:Mistral fill-in-the-middle completion'
+				'mistral:embeddings.create:Mistral text embeddings'
+				'mistral:models.list:Mistral list models'
+				'openai:chat.completions:OpenAI chat completion'
+				'openai:chat.completions.stream:OpenAI streaming chat completion'
+				'openai:responses.create:OpenAI Responses API'
+				'openai:embeddings.create:OpenAI embeddings'
+				'openai:models.list:OpenAI list models'
+				'anthropic:messages.create:Anthropic Messages create'
+				'anthropic:messages.stream:Anthropic streaming Messages'
+				'anthropic:models.list:Anthropic list models'
+				'gemini:models.generateContent:Gemini generate content'
+				'gemini:models.streamGenerateContent:Gemini stream generate content'
+				'gemini:models.list:Gemini list models'
+			)
+			_describe -t providers 'provider' Providers
+			_describe -t targets 'provider:operation' Targets
+			__@webAPI:complete:params
+		}
+
+		function __@webAPI:complete:params {
+			local -a ParamKeys=(
+				'model'
+				'temperature'
+				'maxTokens'
+				'topP'
+				'messages'
+				'prompt'
+				'input'
+				'instructions'
+				'systemPrompt'
+				'stream'
+				'stop'
+				'responseFormat'
+			)
+			compadd -S '=' -- "${(@)ParamKeys}"
+		}
+
+		function __@webAPI:complete:extract {
+			local -a JsonKeys=(
+				'id:Response or resource identifier'
+				'content:Message content text'
+				'text:Text segment'
+				'readable:Bridge extracted readable text'
+				'status:HTTP / bridge status label'
+				'model:Model identifier'
+				'role:Message role'
+				'finish_reason:Completion stop reason'
+				'total_tokens:Total token usage'
+				'prompt_tokens:Prompt token usage'
+				'completion_tokens:Completion token usage'
+			)
+			_describe -t keys 'JSON key to extract' JsonKeys
+		}
+
+		local -A ContextDispatch=(
+			Port               __@webAPI:complete:port
+			HostAddress        __@webAPI:complete:host
+			ConfigurationFile  __@webAPI:complete:config
+			Directory          __@webAPI:complete:directory
+			Select             __@webAPI:complete:targets
+			Fill               __@webAPI:complete:params
+			Send               __@webAPI:complete:targets
+			Extract            __@webAPI:complete:extract
+		)
+
+		local -A SpecMap=(
+			Port               'Port'
+			HostAddress        'Host.Addr.ess'
+			ConfigurationFile  'Conf.ig.uration.File'
+			Directory          'Dir.ectory'
+			Select             'Select'
+			Fill               'Fill'
+			Send               'Send'
+			Extract            'Extract'
+		)
+		local -A FlagPats=()
+		local CtxName RawPat
+		for CtxName ( "${(@k)SpecMap}" ) {
+			RawPat="$(@args:parse:generatePattern "${SpecMap[${CtxName}]}")"
+			FlagPats[${CtxName}]="${RawPat%(\=\*|)(\#e)}(#e)"
+		}
+
+		local CurWord="${words[CURRENT]}"
+		local PrevWord="${words[CURRENT-1]}"
+		local ContextKey=""
+
+		if [[ "${CurWord}" == (#b)([^=]##)=(*) ]] {
+			local FlagPart="${match[1]}"
+			for CtxName ( Port HostAddress ConfigurationFile Directory ) {
+				[[ "${FlagPart}" == ${~FlagPats[${CtxName}]} ]] && {
+					ContextKey="${CtxName}"
+					break
+				}
+			}
+			if [[ -n "${ContextKey}" ]] {
+				compset -P '*='
+				"${ContextDispatch[${ContextKey}]}"
+				return 0
+			}
+		}
+
+		for CtxName ( Port HostAddress ConfigurationFile Directory ) {
+			[[ "${PrevWord}" == ${~FlagPats[${CtxName}]} ]] && {
+				ContextKey="${CtxName}"
+				break
+			}
+		}
+
+		if [[ -z "${ContextKey}" ]] {
+			local -i Idx
+			for (( Idx = CURRENT - 1; Idx >= 2; Idx-- )) {
+				local Word="${words[Idx]}"
+				for CtxName ( Select Fill Send Extract ) {
+					[[ "${Word}" == ${~FlagPats[${CtxName}]} ]] && {
+						ContextKey="${CtxName}"
+						break 2
+					}
+				}
+			}
+		}
+
+		if [[ -n "${ContextKey}" ]] {
+			"${ContextDispatch[${ContextKey}]}"
+			if [[ "${ContextKey}" == (Select|Fill|Send|Extract) ]] {
+				__@webAPI:complete:commands
+			}
+			return 0
+		}
+
+		__@webAPI:complete:commands
+	} always {
+		unfunction \
+			__@webAPI:complete:commands \
+			__@webAPI:complete:port \
+			__@webAPI:complete:host \
+			__@webAPI:complete:config \
+			__@webAPI:complete:directory \
+			__@webAPI:complete:targets \
+			__@webAPI:complete:params \
+			__@webAPI:complete:extract \
+			2>/dev/null
+	}
+}
+
+(( ${+functions[compdef]} )) && compdef _@webAPI @webAPI
 
 if [[ "${ZSH_EVAL_CONTEXT}" == "toplevel" ]] || (( ARGC )) {
 	@webAPI "${(@)argv}"
