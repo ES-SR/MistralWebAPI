@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WebAPIRepoURL='https://github.com/ES-SR/MistralWebAPI.git'
-RepoDir='MistralWebAPI'
+WebAPIRepoURL='https://github.com/ES-SR/WebAPI.git'
+RepoDir='WebAPI'
 
 Help=0
 Run=0

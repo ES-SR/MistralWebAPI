@@ -69,8 +69,8 @@ function @webAPI {
 		}
 
 		function __@webAPI:repo:ensure {
-			local TargetDir="${1:-${WebAPIPaths[RepoDir]:-MistralWebAPI}}"
-			local WebAPIRepoURL='https://github.com/ES-SR/MistralWebAPI.git'
+			local TargetDir="${1:-${WebAPIPaths[RepoDir]:-WebAPI}}"
+			local WebAPIRepoURL='https://github.com/ES-SR/WebAPI.git'
 
 			if [[ "${PWD:t}" == "${TargetDir:t}" && -d .git ]] {
 				(( Update )) && git pull --ff-only
@@ -90,7 +90,7 @@ function @webAPI {
 		}
 
 		function __@webAPI:install {
-			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-${PWD}/MistralWebAPI}}"
+			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-${PWD}/WebAPI}}"
 			if [[ -f "${PWD}/server.ts" && -d "${PWD}/.git" ]] {
 				RepoTarget="${PWD}"
 			}
@@ -180,13 +180,13 @@ function @webAPI {
 		}
 
 		function __@webAPI:update {
-			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-MistralWebAPI}}"
+			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-WebAPI}}"
 			__@webAPI:repo:ensure "${RepoTarget}"
 		}
 
 		function __@webAPI:start {
 			local CliPort="${Port[1]}" CliHost="${HostAddress[1]}" CliConfig="${ConfigurationFile[1]}"
-			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-MistralWebAPI}}"
+			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-WebAPI}}"
 			if [[ -n "${WebAPIPaths[RepoDir]}" && -f "${WebAPIPaths[RepoDir]}/server.ts" ]] {
 				: # RepoDir already resolved from install.conf
 			} elif [[ -f "server.ts" ]] {
