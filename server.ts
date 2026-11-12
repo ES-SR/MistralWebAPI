@@ -14,7 +14,7 @@ const FLAG_SPECS = [
   { key: 'help', takesValue: false, re: /^(?:(?:-|--)?help|(?:-|--)?h)$/i },
   { key: 'config', takesValue: true, re: /^(?:(?:-|--)?conf(?:ig(?:uration)?)?(?:[-_.]?file)?|(?:-|--)?c(?:[-_.]?f)?)$/i },
   { key: 'port', takesValue: true, re: /^(?:(?:-|--)?ports?|(?:-|--)?p)$/i },
-  { key: 'host', takesValue: true, re: /^(?:(?:-|--)?host(?:[-_.]?addr(?:ess)?)?|(?:-|--)?addr(?:ess)?|(?:-|--)?h[-_.]?a|-H)$/i },
+  { key: 'host', takesValue: true, re: /^(?:(?:-|--)?host(?:[-_.]?addr(?:ess)?)?|(?:-|--)?addr(?:ess)?|(?:-|--)?h[-_.]?a)$/i },
 ];
 
 function parseCliArgs(argv) {

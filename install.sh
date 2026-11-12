@@ -35,7 +35,7 @@ while (( $# )); do
         shift || true
       fi
       ;;
-    host|host-addr|host-address|addr|address|-ha|--host|--host-addr|--host-address|--addr|--address|-H)
+    host|host-addr|host-address|addr|address|-ha|--host|--host-addr|--host-address|--addr|--address)
       if (( has_eq )); then
         ServerArgs+=("--host-address=$val")
       else

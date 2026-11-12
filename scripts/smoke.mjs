@@ -54,6 +54,9 @@ ok('config.conf defines safe Key = Value defaults (127.0.0.1:3000)', defaultConf
 const helpOut = execFileSync(process.execPath, ['server.ts', 'Help'], { cwd: ROOT, encoding: 'utf8' });
 ok('server.ts accepts flexible Help flag and prints usage', helpOut.includes('--port') && helpOut.includes('--configuration-file'));
 
+const helpShortUpperOut = execFileSync(process.execPath, ['server.ts', '-H'], { cwd: ROOT, encoding: 'utf8' });
+ok('server.ts treats -H case-insensitively as Help', helpShortUpperOut.includes('-ha, --host-address'));
+
 let invalidPortFailed = false;
 try {
   execFileSync(process.execPath, ['server.ts', 'Port=99999'], { cwd: ROOT, stdio: 'pipe' });
