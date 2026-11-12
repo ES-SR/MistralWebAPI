@@ -20,18 +20,18 @@ function @webAPI {
 				  Help                               Show this help message
 				  Install                            Clone/update repo and interactively install @webAPI (uses vared)
 				  Update                             Pull latest repository changes (git pull --ff-only)
-				  Start | Run                        Start the static server in the background and record its state
-				  StopServer                         Stop the running background server recorded in XDG state/runtime
-				  StatusCheck                        Report whether the background server is running, its PID, and URL
+				  Server[.Run] | ServerLaunch        Start the static server in the background and record its state (-sr / -sl)
+				  ServerStop                         Stop the running background server recorded in XDG state/runtime (-ss)
+				  ServerCheck                        Report whether the background server is running, its PID, and URL (-sc)
 
 				Web-Terminal Bridge & JSON Commands:
-				  BridgeState                        Inspect connected browser UI clients, active provider/op, and state
-				  BridgeResponse                     Fetch the latest response from the browser UI (pipeable to ExtractKeys)
-				  SelectOperation <provider> [op]    Switch the active provider and/or operation in the browser UI
-				  FillParams <Key=Val...>            Populate form parameters in the active browser UI operation
-				  SendRequest [prov:op] <Key=Val...> Fill and execute an operation in the browser UI and print response
-				  ListenEvents                       Stream live SSE events (commands & responses) from the bridge
-				  ExtractKeys <key...>               Extract Key=Value pairs from JSON on stdin by key name (no jq path needed)
+				  Bridge[.Info]                      Inspect connected browser UI clients, active provider/op, and state (-bi)
+				  BridgeResponse                     Fetch the latest response from the browser UI (-br)
+				  BridgeOperation <provider> [op]    Switch the active provider and/or operation in the browser UI (-bo)
+				  BridgeFill <Key=Val...>            Populate form parameters in the active browser UI operation (-bf)
+				  BridgeSend [prov:op] <Key=Val...>  Fill and execute an operation in the browser UI and print response (-bs)
+				  BridgeListen                       Stream live SSE events (commands & responses) from the bridge (-bl)
+				  Extract[.Keys] <key...>            Extract Key=Value pairs from JSON on stdin by key name (-ek)
 
 				Options (case-insensitive, supports --flag, -short, or flag=value):
 				  -p,  --port <0-65535>             Port override for server.ts (default: 3000)
@@ -345,16 +345,16 @@ function @webAPI {
 			Help \
 			Install \
 			Update \
-			Start \
-			Run \
-			Stop.Server \
-			Status.Check \
-			BridgeState \
+			Server.Run \
+			ServerLaunch \
+			ServerStop \
+			ServerCheck \
+			Bridge.Info \
 			BridgeResp.onse \
-			Select.Op.eration:+ \
-			Fill.Param/s.eter/s:+ \
-			Send.Req.uest:+ \
-			Listen.Event/s \
+			BridgeOp.eration:+ \
+			BridgeFill:+ \
+			BridgeSend:+ \
+			BridgeListen \
 			Extract.Key/s:+ \
 			Port:1 \
 			Host.Addr.ess:1 \
@@ -370,18 +370,18 @@ function @webAPI {
 			return 0
 		}
 
-		(( Install ))              && { __@webAPI:install }
-		(( Update ))               && { __@webAPI:update }
-		(( Start || Run ))         && { __@webAPI:start }
-		(( StopServer ))           && { __@webAPI:stop }
-		(( StatusCheck ))          && { __@webAPI:status }
-		(( BridgeState ))          && { __@webAPI:bridge:state }
-		(( BridgeResponse ))       && { __@webAPI:bridge:response }
-		(( ${#SelectOperation} ))  && { __@webAPI:bridge:select "${(@)SelectOperation}" }
-		(( ${#FillParameters} ))   && { __@webAPI:bridge:fill "${(@)FillParameters}" }
-		(( ${#SendRequest} ))      && { __@webAPI:bridge:send "${(@)SendRequest}" }
-		(( ListenEvents ))         && { __@webAPI:bridge:listen }
-		(( ${#ExtractKeys} && ! BridgeResponse && ! ${#SendRequest} )) && { __@webAPI:json:extract "${(@)ExtractKeys}" }
+		(( Install ))                       && { __@webAPI:install }
+		(( Update ))                        && { __@webAPI:update }
+		(( ServerRun || ServerLaunch ))     && { __@webAPI:start }
+		(( ServerStop ))                    && { __@webAPI:stop }
+		(( ServerCheck ))                   && { __@webAPI:status }
+		(( BridgeInfo ))                    && { __@webAPI:bridge:state }
+		(( BridgeResponse ))                && { __@webAPI:bridge:response }
+		(( ${#BridgeOperation} ))           && { __@webAPI:bridge:select "${(@)BridgeOperation}" }
+		(( ${#BridgeFill} ))                && { __@webAPI:bridge:fill "${(@)BridgeFill}" }
+		(( ${#BridgeSend} ))                && { __@webAPI:bridge:send "${(@)BridgeSend}" }
+		(( BridgeListen ))                  && { __@webAPI:bridge:listen }
+		(( ${#ExtractKeys} && ! BridgeResponse && ! ${#BridgeSend} )) && { __@webAPI:json:extract "${(@)ExtractKeys}" }
 	} always {
 		unfunction \
 			__@webAPI:help \
@@ -413,17 +413,17 @@ function _@webAPI {
 				'Help:Show help message'
 				'Install:Clone/update repo and interactively install @webAPI (uses vared)'
 				'Update:Pull latest repository changes (git pull --ff-only)'
-				'Start:Start the static server in the background and record its state'
-				'Run:Start the static server in the background and record its state'
-				'StopServer:Stop the running background server recorded in XDG state/runtime'
-				'StatusCheck:Report whether the background server is running, its PID, and URL'
-				'BridgeState:Inspect connected browser UI clients, active provider/op, and state'
-				'BridgeResponse:Fetch the latest response from the browser UI'
-				'SelectOperation:Switch the active provider and/or operation in the browser UI'
-				'FillParams:Populate form parameters in the active browser UI operation'
-				'SendRequest:Fill and execute an operation in the browser UI and print response'
-				'ListenEvents:Stream live SSE events (commands & responses) from the bridge'
-				'ExtractKeys:Extract Key=Value pairs from JSON on stdin by key name'
+				'ServerRun:Start the static server in the background and record its state (-sr / Server)'
+				'ServerLaunch:Start the static server in the background and record its state (-sl)'
+				'ServerStop:Stop the running background server recorded in XDG state/runtime (-ss)'
+				'ServerCheck:Report whether the background server is running, its PID, and URL (-sc)'
+				'BridgeInfo:Inspect connected browser UI clients, active provider/op, and state (-bi / Bridge)'
+				'BridgeResponse:Fetch the latest response from the browser UI (-br)'
+				'BridgeOperation:Switch the active provider and/or operation in the browser UI (-bo)'
+				'BridgeFill:Populate form parameters in the active browser UI operation (-bf)'
+				'BridgeSend:Fill and execute an operation in the browser UI and print response (-bs)'
+				'BridgeListen:Stream live SSE events (commands & responses) from the bridge (-bl)'
+				'ExtractKeys:Extract Key=Value pairs from JSON on stdin by key name (-ek)'
 			)
 			local -a Options=(
 				'--port:Port override for server.ts (0-65535)'
@@ -533,9 +533,9 @@ function _@webAPI {
 			HostAddress        __@webAPI:complete:host
 			ConfigurationFile  __@webAPI:complete:config
 			Directory          __@webAPI:complete:directory
-			SelectOperation    __@webAPI:complete:targets
-			FillParameters     __@webAPI:complete:params
-			SendRequest        __@webAPI:complete:targets
+			BridgeOperation    __@webAPI:complete:targets
+			BridgeFill         __@webAPI:complete:params
+			BridgeSend         __@webAPI:complete:targets
 			ExtractKeys        __@webAPI:complete:extract
 		)
 
@@ -544,9 +544,9 @@ function _@webAPI {
 			HostAddress        'Host.Addr.ess'
 			ConfigurationFile  'Conf.ig.uration.File'
 			Directory          'Dir.ectory'
-			SelectOperation    'Select.Op.eration'
-			FillParameters     'Fill.Param/s.eter/s'
-			SendRequest        'Send.Req.uest'
+			BridgeOperation    'BridgeOp.eration'
+			BridgeFill         'BridgeFill'
+			BridgeSend         'BridgeSend'
 			ExtractKeys        'Extract.Key/s'
 		)
 		local -A FlagPats=()
@@ -586,7 +586,7 @@ function _@webAPI {
 			local -i Idx
 			for (( Idx = CURRENT - 1; Idx >= 2; Idx-- )) {
 				local Word="${words[Idx]}"
-				for CtxName ( SelectOperation FillParameters SendRequest ExtractKeys ) {
+				for CtxName ( BridgeOperation BridgeFill BridgeSend ExtractKeys ) {
 					[[ "${Word}" == ${~FlagPats[${CtxName}]} ]] && {
 						ContextKey="${CtxName}"
 						break 2
@@ -597,7 +597,7 @@ function _@webAPI {
 
 		if [[ -n "${ContextKey}" ]] {
 			"${ContextDispatch[${ContextKey}]}"
-			if [[ "${ContextKey}" == (SelectOperation|FillParameters|SendRequest|ExtractKeys) ]] {
+			if [[ "${ContextKey}" == (BridgeOperation|BridgeFill|BridgeSend|ExtractKeys) ]] {
 				__@webAPI:complete:commands
 			}
 			return 0
