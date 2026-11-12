@@ -1,0 +1,222 @@
+#compdef @webAPI
+
+() {
+	emulate -LR zsh -o extendedglob -o typesetsilent -o shortloops
+	(( ${+functions[@args:parse:generatePattern]} )) && return 0
+	local ArgParserURL='https://raw.githubusercontent.com/ES-SR/ZshTools/refs/heads/main/%40/args/%40args%3Aparse.zsh'
+	. <(2>/dev/null curl -fsSL "${ArgParserURL}" --)
+}
+
+function _@webAPI {
+	emulate -LR zsh -o extendedglob -o typesetsilent -o shortloops
+	{
+		function __@webAPI:complete:commands {
+			local -a Commands=(
+				'Help:Show help message'
+				'Update:Pull latest repository changes (git pull --ff-only)'
+				'ServerRun:Start the static server in the background and record its state (-sr / Server)'
+				'ServerLaunch:Start the static server in the background and record its state (-sl)'
+				'ServerStop:Stop the running background server recorded in XDG state/runtime (-ss)'
+				'ServerCheck:Report whether the background server is running, its PID, and URL (-sc)'
+				'BridgeInfo:Inspect connected browser UI clients, active provider/op, and state (-bi / Bridge)'
+				'BridgeResponse:Fetch the latest response from the browser UI (-br)'
+				'BridgeOperation:Switch the active provider and/or operation in the browser UI (-bo)'
+				'BridgeFill:Populate form parameters in the active browser UI operation (-bf)'
+				'BridgeSend:Fill and execute an operation in the browser UI and print response (-bs)'
+				'BridgeListen:Stream live SSE events (commands & responses) from the bridge (-bl)'
+				'ExtractKeys:Extract Key=Value pairs from JSON on stdin by key name (-ek)'
+			)
+			local -a Options=(
+				'--port:Port override for server.ts (0-65535)'
+				'--host-address:Bind address override for server.ts (default 127.0.0.1)'
+				'--configuration-file:Path to Key=Value config file (default ./config.conf)'
+				'--directory:Repository directory override'
+			)
+			_describe -t commands '@webAPI command' Commands
+			_describe -t options '@webAPI option' Options
+		}
+
+		function __@webAPI:complete:port {
+			local -a Ports=(
+				'3000:Default playground port'
+				'8080:Alternate HTTP development port'
+				'8000:Alternate local server port'
+				'0:OS-assigned ephemeral port'
+			)
+			_describe -t ports 'port' Ports
+		}
+
+		function __@webAPI:complete:host {
+			local -a Hosts=(
+				'127.0.0.1:IPv4 loopback (default)'
+				'localhost:Localhost hostname'
+				'::1:IPv6 loopback'
+				'0.0.0.0:All IPv4 interfaces (use TLS proxy)'
+			)
+			_describe -t hosts 'bind address' Hosts
+		}
+
+		function __@webAPI:complete:config {
+			_files -g '*.conf(-.)' -g '*(-.)'
+		}
+
+		function __@webAPI:complete:directory {
+			_files -/
+		}
+
+		function __@webAPI:complete:targets {
+			local -a Providers=(
+				'mistral:Mistral AI API'
+				'openai:OpenAI / OpenAI-compatible API'
+				'anthropic:Anthropic Messages API'
+				'gemini:Google Gemini API'
+			)
+			local -a Targets=(
+				'mistral:chat.complete:Mistral chat completion'
+				'mistral:chat.stream:Mistral streaming chat completion'
+				'mistral:fim.complete:Mistral fill-in-the-middle completion'
+				'mistral:embeddings.create:Mistral text embeddings'
+				'mistral:models.list:Mistral list models'
+				'openai:chat.completions:OpenAI chat completion'
+				'openai:chat.completions.stream:OpenAI streaming chat completion'
+				'openai:responses.create:OpenAI Responses API'
+				'openai:embeddings.create:OpenAI embeddings'
+				'openai:models.list:OpenAI list models'
+				'anthropic:messages.create:Anthropic Messages create'
+				'anthropic:messages.stream:Anthropic streaming Messages'
+				'anthropic:models.list:Anthropic list models'
+				'gemini:models.generateContent:Gemini generate content'
+				'gemini:models.streamGenerateContent:Gemini stream generate content'
+				'gemini:models.list:Gemini list models'
+			)
+			_describe -t providers 'provider' Providers
+			_describe -t targets 'provider:operation' Targets
+			__@webAPI:complete:params
+		}
+
+		function __@webAPI:complete:params {
+			local -a ParamKeys=(
+				'model'
+				'temperature'
+				'maxTokens'
+				'topP'
+				'messages'
+				'prompt'
+				'input'
+				'instructions'
+				'systemPrompt'
+				'stream'
+				'stop'
+				'responseFormat'
+			)
+			compadd -S '=' -- "${(@)ParamKeys}"
+		}
+
+		function __@webAPI:complete:extract {
+			local -a JsonKeys=(
+				'id:Response or resource identifier'
+				'content:Message content text'
+				'text:Text segment'
+				'readable:Bridge extracted readable text'
+				'status:HTTP / bridge status label'
+				'model:Model identifier'
+				'role:Message role'
+				'finish_reason:Completion stop reason'
+				'total_tokens:Total token usage'
+				'prompt_tokens:Prompt token usage'
+				'completion_tokens:Completion token usage'
+			)
+			_describe -t keys 'JSON key to extract' JsonKeys
+		}
+
+		local -A ContextDispatch=(
+			Port               __@webAPI:complete:port
+			HostAddress        __@webAPI:complete:host
+			ConfigurationFile  __@webAPI:complete:config
+			Directory          __@webAPI:complete:directory
+			BridgeOperation    __@webAPI:complete:targets
+			BridgeFill         __@webAPI:complete:params
+			BridgeSend         __@webAPI:complete:targets
+			ExtractKeys        __@webAPI:complete:extract
+		)
+
+		local -A SpecMap=(
+			Port               'Port'
+			HostAddress        'Host.Addr.ess'
+			ConfigurationFile  'Conf.ig.uration.File'
+			Directory          'Dir.ectory'
+			BridgeOperation    'BridgeOp.eration'
+			BridgeFill         'BridgeFill'
+			BridgeSend         'BridgeSend'
+			ExtractKeys        'Extract.Key/s'
+		)
+		local -A FlagPats=()
+		local CtxName RawPat
+		for CtxName ( "${(@k)SpecMap}" ) {
+			RawPat="$(@args:parse:generatePattern "${SpecMap[${CtxName}]}")"
+			FlagPats[${CtxName}]="${RawPat%(\=\*|)(\#e)}(#e)"
+		}
+
+		local CurWord="${words[CURRENT]}"
+		local PrevWord="${words[CURRENT-1]}"
+		local ContextKey=""
+
+		if [[ "${CurWord}" == (#b)([^=]##)=(*) ]] {
+			local FlagPart="${match[1]}"
+			for CtxName ( Port HostAddress ConfigurationFile Directory ) {
+				[[ "${FlagPart}" == ${~FlagPats[${CtxName}]} ]] && {
+					ContextKey="${CtxName}"
+					break
+				}
+			}
+			if [[ -n "${ContextKey}" ]] {
+				compset -P '*='
+				"${ContextDispatch[${ContextKey}]}"
+				return 0
+			}
+		}
+
+		for CtxName ( Port HostAddress ConfigurationFile Directory ) {
+			[[ "${PrevWord}" == ${~FlagPats[${CtxName}]} ]] && {
+				ContextKey="${CtxName}"
+				break
+			}
+		}
+
+		if [[ -z "${ContextKey}" ]] {
+			local -i Idx
+			for (( Idx = CURRENT - 1; Idx >= 2; Idx-- )) {
+				local Word="${words[Idx]}"
+				for CtxName ( BridgeOperation BridgeFill BridgeSend ExtractKeys ) {
+					[[ "${Word}" == ${~FlagPats[${CtxName}]} ]] && {
+						ContextKey="${CtxName}"
+						break 2
+					}
+				}
+			}
+		}
+
+		if [[ -n "${ContextKey}" ]] {
+			"${ContextDispatch[${ContextKey}]}"
+			if [[ "${ContextKey}" == (BridgeOperation|BridgeFill|BridgeSend|ExtractKeys) ]] {
+				__@webAPI:complete:commands
+			}
+			return 0
+		}
+
+		__@webAPI:complete:commands
+	} always {
+		unfunction \
+			__@webAPI:complete:commands \
+			__@webAPI:complete:port \
+			__@webAPI:complete:host \
+			__@webAPI:complete:config \
+			__@webAPI:complete:directory \
+			__@webAPI:complete:targets \
+			__@webAPI:complete:params \
+			__@webAPI:complete:extract \
+			2>/dev/null
+	}
+}
+
+_@webAPI "${(@)argv}"

@@ -84,7 +84,11 @@ npm run smoke
 ## Project Layout
 
 ```
-server.ts                        # Dependency-free static HTTP server (127.0.0.1:3000 default, --port/--host CLI)
+server.ts                        # Dependency-free static HTTP server + loopback Web-Terminal Bridge
+config.conf                      # Human-readable Key = Value server configuration (Host, Port)
+install.zsh                      # Interactive Zsh installer (clones repo, installs @webAPI & _@webAPI to $fpath)
+@webAPI                          # Autoloadable Zsh CLI & Web-Terminal Bridge function
+_@webAPI                         # Autoloadable Zsh completion function (#compdef @webAPI)
 scripts/smoke.mjs                # Zero-dependency syntax, unit, and live HTTP smoke test suite
 public/index.html                # App shell (Sidebar, API workspace, Settings sections)
 public/styles.css                # Native CSS with nesting and runtime CSS custom properties
