@@ -492,40 +492,45 @@ function @print:pel {
 
 		@print:pel "Section 4: End-to-End @webAPI Binary Tests"
 
-		# Test Bridge.URL / -bu
-		local UrlOut
-		UrlOut="$(zsh "${WebAPIBin}" BridgeURL -ha 10.0.0.1 -p 8888 2>/dev/null)"
-		test@assert:equal "E2E: BridgeURL -ha -p" "$UrlOut" "http://10.0.0.1:8888"
+		# Test Server Configure: CLI flag resolution into ServerArgs
+		local CfgOut
+		CfgOut="$(zsh "${WebAPIBin}" Server Configure -ha 10.0.0.1 -p 8888 2>/dev/null)"
+		local HasHA=1 HasP=1
+		[[ "$CfgOut" == *"HostAddress=10.0.0.1"* ]] && HasHA=0
+		[[ "$CfgOut" == *"Port=8888"* ]] && HasP=0
+		test@assert:true "E2E: Server Configure -ha -p host" $HasHA
+		test@assert:true "E2E: Server Configure -ha -p port" $HasP
 
-		UrlOut="$(zsh "${WebAPIBin}" -bu hostAddr=10.0.0.2 -p 4444 2>/dev/null)"
-		test@assert:equal "E2E: -bu hostAddr= -p" "$UrlOut" "http://10.0.0.2:4444"
+		CfgOut="$(zsh "${WebAPIBin}" Server Configure hostAddr=10.0.0.2 -p 4444 2>/dev/null)"
+		local HasHA2=1 HasP2=1
+		[[ "$CfgOut" == *"HostAddress=10.0.0.2"* ]] && HasHA2=0
+		[[ "$CfgOut" == *"Port=4444"* ]] && HasP2=0
+		test@assert:true "E2E: Server Configure hostAddr= -p host" $HasHA2
+		test@assert:true "E2E: Server Configure hostAddr= -p port" $HasP2
 
-		# Test BridgeURL with config file
+		# Test Server Configure reading a config file via -cf
 		local E2EConf="${TestTmpDir}/e2e.conf"
 		cat > "$E2EConf" <<-EOF
 			HostAddress = 192.168.50.1
 			Port = 3333
 		EOF
-		UrlOut="$(zsh "${WebAPIBin}" -bu -cf "$E2EConf" 2>/dev/null)"
-		test@assert:equal "E2E: -bu -cf config file" "$UrlOut" "http://192.168.50.1:3333"
+		CfgOut="$(zsh "${WebAPIBin}" Server Configure -cf "$E2EConf" 2>/dev/null)"
+		local HasCf=1 HasCfH=1 HasCfP=1
+		[[ "$CfgOut" == *"e2e.conf"* ]] && HasCf=0
+		[[ "$CfgOut" == *"HostAddress=192.168.50.1"* ]] && HasCfH=0
+		[[ "$CfgOut" == *"Port=3333"* ]] && HasCfP=0
+		test@assert:true "E2E: Server Configure -cf config file path" $HasCf
+		test@assert:true "E2E: Server Configure -cf host from file" $HasCfH
+		test@assert:true "E2E: Server Configure -cf port from file" $HasCfP
 
-		# Test Extract.Keys
-		local JsonSample='{"provider": "mistral", "model": "mistral-large-latest", "stream": true}'
-		local Extracted="$(zsh "${WebAPIBin}" Extract.Keys provider model <<< "$JsonSample" 2>/dev/null)"
-		local HasProv=1 HasMod=1
-		[[ "$Extracted" == *"provider=mistral"* ]] && HasProv=0
-		[[ "$Extracted" == *"model=mistral-large-latest"* ]] && HasMod=0
-		test@assert:true "E2E: Extract.Keys provider" $HasProv
-		test@assert:true "E2E: Extract.Keys model" $HasMod
-
-		# Test ServerCheck when stopped
+		# Test Server Status when stopped
 		local StatusOut
-		StatusOut="$(XDG_RUNTIME_DIR="${TestTmpDir}/runtime" zsh "${WebAPIBin}" ServerCheck 2>/dev/null)"
+		StatusOut="$(XDG_RUNTIME_DIR="${TestTmpDir}/runtime" zsh "${WebAPIBin}" Server Status 2>/dev/null)"
 		local StatusExit=$?
-		test@assert:equal "E2E: ServerCheck exit code when stopped" "$StatusExit" "1"
-		test@assert:equal "E2E: ServerCheck prints Stopped" "$StatusOut" "Stopped"
+		test@assert:equal "E2E: Server Status exit code when stopped" "$StatusExit" "1"
+		test@assert:equal "E2E: Server Status prints Stopped" "$StatusOut" "Stopped"
 
-		# Test ServerCheck when running with HostAddress
+		# Test Server Status when running with HostAddress
 		local RunningStateDir="${TestTmpDir}/runtime_running/webapi"
 		mkdir -p "${RunningStateDir}"
 		cat > "${RunningStateDir}/server.state" <<-EOF
@@ -534,10 +539,10 @@ function @print:pel {
 			Port = 3000
 			RepoDir = ${TestTmpDir}
 		EOF
-		StatusOut="$(XDG_RUNTIME_DIR="${TestTmpDir}/runtime_running" zsh "${WebAPIBin}" ServerCheck 2>/dev/null)"
+		StatusOut="$(XDG_RUNTIME_DIR="${TestTmpDir}/runtime_running" zsh "${WebAPIBin}" Server Status 2>/dev/null)"
 		StatusExit=$?
-		test@assert:equal "E2E: ServerCheck exit code when running" "$StatusExit" "0"
-		test@assert:equal "E2E: ServerCheck reports running with HostAddress" "$StatusOut" "Running: PID=$$ URL=http://127.0.0.1:3000"
+		test@assert:equal "E2E: Server Status exit code when running" "$StatusExit" "0"
+		test@assert:equal "E2E: Server Status reports running with URL" "$StatusOut" "Running: PID=$$ URL=http://127.0.0.1:3000"
 
 		# Test Help output contains generated patterns and examples
 		local HelpOut
