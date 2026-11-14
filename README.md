@@ -49,18 +49,32 @@ Or run [`install.zsh`](install.zsh) once to install the standalone `@webAPI` CLI
 ```zsh
 ./install.zsh                      # interactively install @webAPI & _@webAPI into $fpath and configure autoload
 
-@webAPI ServerRun Port=8080        # start background server (or -sr / Server / ServerLaunch)
-@webAPI ServerCheck                # check running server PID and URL (-sc)
-@webAPI ServerStop                 # stop background server (-ss)
+# Server management (also available directly as @webAPI:server <subcommand>):
+@webAPI server run Port=8080       # start background server
+@webAPI server status              # check running server PID and URL (aliases: info, state)
+@webAPI server stop                # stop background server
+@webAPI server update              # pull latest repository changes
+@webAPI server configure           # persist HostAddress/Port to config
 
-# Loopback Web-Terminal Bridge (never touches or transmits API keys):
-@webAPI BridgeInfo                                                    # inspect connected browser tabs & active op (-bi / Bridge)
-@webAPI BridgeOperation mistral chat.complete                         # switch provider & operation in the browser UI (-bo)
-@webAPI BridgeFill model=mistral-small-latest temperature=0.3         # populate form fields in the browser UI (-bf)
-@webAPI BridgeSend mistral:chat.complete model=mistral-small-latest --extract-keys content
-@webAPI BridgeResponse --extract-keys content id                      # fetch latest browser response & extract keys (-br)
-@webAPI BridgeListen                                                  # stream live SSE events from the bridge (-bl)
-@webAPI ExtractKeys content id < response.json                        # extract Key=Value pairs from JSON without jq (-ek)
+# Templates (also available directly as @webAPI:template <subcommand>):
+@webAPI template new chat mistral:chat.complete model=mistral-small-latest
+@webAPI template load chat         # fill browser UI form from template
+@webAPI template edit chat temperature=0.3
+@webAPI template list              # list saved templates
+@webAPI template remove chat       # delete saved template
+
+# Events ring buffer (also available directly as @webAPI:events <subcommand>):
+@webAPI events start               # start background SSE listener feeding the ring buffer
+@webAPI events read [n]            # read next n buffered events (default: 1)
+@webAPI events queueSize [n]       # get or set ring buffer capacity
+@webAPI events pause / resume      # pause or resume buffering
+@webAPI events clear / stop        # clear buffer or stop listener
+
+# Default action & inspection:
+@webAPI info                       # inspect connected browser UI clients, active op, and state
+@webAPI mistral:chat.complete model=mistral-small-latest   # send operation & params (default)
+@webAPI chat                       # send saved template by name (default)
+@webAPI help                       # show CLI commands, patterns, and options
 ```
 
 > **Security note on `--host`:** The server defaults to loopback (`127.0.0.1`). If you bind to a non-loopback interface (e.g. `0.0.0.0` or a LAN IP), the server logs a warning — always place a TLS reverse proxy in front if exposing beyond localhost.
@@ -87,8 +101,15 @@ npm run smoke
 server.ts                        # Dependency-free static HTTP server + loopback Web-Terminal Bridge
 config.conf                      # Human-readable Key = Value server configuration (Host, Port)
 install.zsh                      # Interactive Zsh installer (clones repo, installs @webAPI & _@webAPI to $fpath)
-@webAPI                          # Autoloadable Zsh CLI & Web-Terminal Bridge function
+@webAPI                          # Autoloadable Zsh CLI & Web-Terminal Bridge entrypoint
 _@webAPI                         # Autoloadable Zsh completion function (#compdef @webAPI)
+@/webAPI/env/                    # Shared path and config resolution (__@webAPI:env.zsh)
+@/webAPI/server/                 # Server subtool (@webAPI:server.zsh)
+@/webAPI/template/               # Template subtool (@webAPI:template.zsh)
+@/webAPI/events/                 # Events ring-buffer subtool (@webAPI:events.zsh)
+@/webAPI/help/                   # CLI help generator (__@webAPI:help.zsh)
+@/webAPI/update/                 # Repository updater (__@webAPI:update.zsh)
+@/webAPI/test/                   # Zsh CLI test suite (test@webAPI.zsh)
 scripts/smoke.mjs                # Zero-dependency syntax, unit, and live HTTP smoke test suite
 public/index.html                # App shell (Sidebar, API workspace, Settings sections)
 public/styles.css                # Native CSS with nesting and runtime CSS custom properties

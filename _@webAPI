@@ -13,27 +13,69 @@ function _@webAPI {
 		function __@webAPI:complete:commands {
 			local -a Commands=(
 				'Help:Show help message'
-				'Update:Pull latest repository changes (git pull --ff-only)'
-				'ServerRun:Start the static server in the background and record its state (-sr / Server)'
-				'ServerLaunch:Start the static server in the background and record its state (-sl)'
-				'ServerStop:Stop the running background server recorded in XDG state/runtime (-ss)'
-				'ServerCheck:Report whether the background server is running, its PID, and URL (-sc)'
-				'BridgeInfo:Inspect connected browser UI clients, active provider/op, and state (-bi / Bridge)'
-				'BridgeResponse:Fetch the latest response from the browser UI (-br)'
-				'BridgeOperation:Switch the active provider and/or operation in the browser UI (-bo)'
-				'BridgeFill:Populate form parameters in the active browser UI operation (-bf)'
-				'BridgeSend:Fill and execute an operation in the browser UI and print response (-bs)'
-				'BridgeListen:Stream live SSE events (commands & responses) from the bridge (-bl)'
-				'ExtractKeys:Extract Key=Value pairs from JSON on stdin by key name (-ek)'
+				'Server:Manage the WebAPI server process and configuration'
+				'Template:Manage and load saved form/operation templates'
+				'Events:Read and manage buffered SSE bridge events'
+				'Info:Inspect connected browser UI clients, active provider/op, and state'
 			)
 			local -a Options=(
-				'--port:Port override for server.ts (0-65535)'
-				'--host-address:Bind address override for server.ts (default 127.0.0.1)'
-				'--configuration-file:Path to Key=Value config file (default ./config.conf)'
+				'--host-address:Bind address override for server (default 127.0.0.1)'
+				'--port:Port override for server (0-65535)'
+				'--configuration-file:Path to Key=Value config file (default ./webAPI.conf)'
 				'--directory:Repository directory override'
 			)
 			_describe -t commands '@webAPI command' Commands
 			_describe -t options '@webAPI option' Options
+		}
+
+		function __@webAPI:complete:server {
+			local -a ServerCmds=(
+				'run:Start the background WebAPI server'
+				'stop:Stop the running background server'
+				'status:Check whether the server is running, its PID, and URL'
+				'info:Alias for status'
+				'state:Alias for status'
+				'update:Pull latest repository changes'
+				'configure:Persist HostAddress/Port to config'
+			)
+			_describe -t server-commands 'server subcommand' ServerCmds
+		}
+
+		function __@webAPI:complete:templates {
+			local TplDir="${XDG_CONFIG_HOME:-${HOME}/.config}/webapi/templates"
+			[[ -d "${TplDir}" ]] || return 0
+			local -a TplFiles=( "${TplDir}"/*.conf(N) )
+			local -a TplNames=()
+			local F
+			for F ( "${(@)TplFiles}" ) {
+				TplNames+=( "${F:t:r}:Saved template" )
+			}
+			(( ${#TplNames} )) && _describe -t templates 'saved template' TplNames
+		}
+
+		function __@webAPI:complete:template {
+			local -a TplCmds=(
+				'new:Create a new template (new <name> [provider[:op]] [key=val...])'
+				'load:Fill browser UI form from a saved template'
+				'edit:Edit an existing template'
+				'remove:Delete a saved template'
+				'list:List saved templates'
+			)
+			_describe -t template-commands 'template subcommand' TplCmds
+			__@webAPI:complete:templates
+		}
+
+		function __@webAPI:complete:events {
+			local -a EventCmds=(
+				'read:Read next n buffered events (default 1)'
+				'queueSize:Get or set ring buffer capacity'
+				'clear:Clear buffered events and reset cursor'
+				'pause:Pause buffering incoming events'
+				'resume:Resume buffering incoming events'
+				'start:Start background SSE listener'
+				'stop:Stop background SSE listener'
+			)
+			_describe -t events-commands 'events subcommand' EventCmds
 		}
 
 		function __@webAPI:complete:port {
@@ -91,6 +133,7 @@ function _@webAPI {
 			)
 			_describe -t providers 'provider' Providers
 			_describe -t targets 'provider:operation' Targets
+			__@webAPI:complete:templates
 			__@webAPI:complete:params
 		}
 
@@ -112,43 +155,24 @@ function _@webAPI {
 			compadd -S '=' -- "${(@)ParamKeys}"
 		}
 
-		function __@webAPI:complete:extract {
-			local -a JsonKeys=(
-				'id:Response or resource identifier'
-				'content:Message content text'
-				'text:Text segment'
-				'readable:Bridge extracted readable text'
-				'status:HTTP / bridge status label'
-				'model:Model identifier'
-				'role:Message role'
-				'finish_reason:Completion stop reason'
-				'total_tokens:Total token usage'
-				'prompt_tokens:Prompt token usage'
-				'completion_tokens:Completion token usage'
-			)
-			_describe -t keys 'JSON key to extract' JsonKeys
-		}
-
 		local -A ContextDispatch=(
 			Port               __@webAPI:complete:port
 			HostAddress        __@webAPI:complete:host
 			ConfigurationFile  __@webAPI:complete:config
 			Directory          __@webAPI:complete:directory
-			BridgeOperation    __@webAPI:complete:targets
-			BridgeFill         __@webAPI:complete:params
-			BridgeSend         __@webAPI:complete:targets
-			ExtractKeys        __@webAPI:complete:extract
+			Server             __@webAPI:complete:server
+			Template           __@webAPI:complete:template
+			Events             __@webAPI:complete:events
 		)
 
 		local -A SpecMap=(
 			Port               'Port'
-			HostAddress        'Host.Addr.ess'
+			HostAddress        'HostAddr.ess'
 			ConfigurationFile  'Conf.ig.uration.File'
 			Directory          'Dir.ectory'
-			BridgeOperation    'BridgeOp.eration'
-			BridgeFill         'BridgeFill'
-			BridgeSend         'BridgeSend'
-			ExtractKeys        'Extract.Key/s'
+			Server             'Server'
+			Template           'Template'
+			Events             'Events'
 		)
 		local -A FlagPats=()
 		local CtxName RawPat
@@ -187,7 +211,7 @@ function _@webAPI {
 			local -i Idx
 			for (( Idx = CURRENT - 1; Idx >= 2; Idx-- )) {
 				local Word="${words[Idx]}"
-				for CtxName ( BridgeOperation BridgeFill BridgeSend ExtractKeys ) {
+				for CtxName ( Server Template Events ) {
 					[[ "${Word}" == ${~FlagPats[${CtxName}]} ]] && {
 						ContextKey="${CtxName}"
 						break 2
@@ -198,23 +222,24 @@ function _@webAPI {
 
 		if [[ -n "${ContextKey}" ]] {
 			"${ContextDispatch[${ContextKey}]}"
-			if [[ "${ContextKey}" == (BridgeOperation|BridgeFill|BridgeSend|ExtractKeys) ]] {
-				__@webAPI:complete:commands
-			}
 			return 0
 		}
 
 		__@webAPI:complete:commands
+		__@webAPI:complete:targets
 	} always {
 		unfunction \
 			__@webAPI:complete:commands \
+			__@webAPI:complete:server \
+			__@webAPI:complete:templates \
+			__@webAPI:complete:template \
+			__@webAPI:complete:events \
 			__@webAPI:complete:port \
 			__@webAPI:complete:host \
 			__@webAPI:complete:config \
 			__@webAPI:complete:directory \
 			__@webAPI:complete:targets \
 			__@webAPI:complete:params \
-			__@webAPI:complete:extract \
 			2>/dev/null
 	}
 }

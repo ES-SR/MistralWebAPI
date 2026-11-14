@@ -21,7 +21,7 @@
 				Options (case-insensitive, supports --flag, -short, or flag=value):
 				  -h,  --help                  Show this help message
 				  -u,  --update                Pull latest changes if repository already exists
-				  -r,  --run                   Start the server via '@webAPI ServerRun' after installing
+				  -r,  --run                   Start the server via '@webAPI server run' after installing
 				  -d,  --directory <path>      Target directory for the WebAPI repository
 				  -fd, --func-directory <path> Target $fpath directory for '@webAPI' and '_@webAPI'
 			@webAPI:install.EOF
@@ -127,7 +127,7 @@
 		}
 
 		(( Run )) && {
-			. "${RepoDir}/@webAPI" ServerRun
+			. "${RepoDir}/@webAPI" server run
 		}
 	} always {
 		unfunction __@webAPI:install:help 2>/dev/null
