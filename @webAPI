@@ -12,37 +12,27 @@ emulate -LR zsh -o extendedglob -o typesetsilent -o shortloops -o aliases
 function @webAPI {
 	emulate -LR zsh -o extendedglob -o typesetsilent -o shortloops -o aliases
 	{
+		local ScriptRoot="${${(%):-%x}:A:h}"
+		[[ -f "${ScriptRoot}/@/webAPI/env/__@webAPI:env.zsh" ]] || ScriptRoot="${PWD}"
+		(( ${+functions[__@webAPI:paths:resolve]} )) || . "${ScriptRoot}/@/webAPI/env/__@webAPI:env.zsh"
+
 		local -A WebAPIPaths=()
+		local -A ServerArgs=()
+		local -a RemainingArgv=()
 
 		local -a CommandNames=(
 			Help
-			Update
-			ServerRun
-			ServerStop
-			ServerCheck
-			BridgeUrl
+			Server
+			Template
+			Events
 			Info
-			Response
-			Operation
-			Fill
-			Send
-			Listen
-			ExtractKeys
 		)
 		local -a CommandPatterns=(
 			Help
-			Update
-			ServerRun
-			ServerStop
-			ServerCheck
-			Bridge.Url
+			Server
+			Template
+			Events
 			Info
-			Resp.onse
-			Op.eration
-			Fill
-			Send
-			Listen
-			Extract.Keys
 		)
 
 		local -a ConfigNames=(
@@ -63,18 +53,10 @@ function @webAPI {
 
 		local -A HelpInfo=(
 			Help              ";Show this help message;@webAPI Help, @webAPI -h, @webAPI --help"
-			Update            ";Pull latest repository changes (git pull --ff-only);@webAPI Update, @webAPI -u, @webAPI --update"
-			ServerRun         ";Start the server in background and record its state;@webAPI ServerRun, @webAPI -sr, @webAPI --server-run -p 8080"
-			ServerStop        ";Stop the running background server;@webAPI ServerStop, @webAPI -ss, @webAPI --server-stop"
-			ServerCheck       ";Report whether background server is running, its PID, and URL;@webAPI ServerCheck, @webAPI -sc, @webAPI --server-check"
-			BridgeUrl         ";Print the configured bridge URL;@webAPI BridgeURL, @webAPI -bu, @webAPI --bridge-url -p 4000"
+			Server            "<run|stop|status|update|configure>;Manage the WebAPI server process and configuration;@webAPI server run -p 8080, @webAPI:server status"
+			Template          "<new|load|edit|remove|list> ...;Manage and load saved form/operation templates;@webAPI template new chat mistral:chat model=mistral-large, @webAPI:template list"
+			Events            "<read|queueSize|clear|pause|resume|start|stop>;Read and manage buffered SSE bridge events;@webAPI events read 5, @webAPI:events queueSize 200"
 			Info              ";Inspect connected browser UI clients, active provider/op, and state;@webAPI Info, @webAPI -i, @webAPI --info"
-			Response          ";Fetch latest response from browser UI;@webAPI Response, @webAPI -r, @webAPI --response"
-			Operation         "<provider> [op];Switch active provider and/or operation in browser UI;@webAPI Op mistral chat, @webAPI -o openai completions"
-			Fill              "<Key=Val...>;Populate form parameters in active browser UI operation;@webAPI Fill model=mistral-large temperature=0.7, @webAPI -f stream=true"
-			Send              "[prov:op] <Key=Val...>;Fill and execute operation in browser UI and print response;@webAPI Send mistral:chat prompt=\"Hello\", @webAPI -s model=gpt-4o"
-			Listen            ";Stream live SSE events (commands & responses) from bridge;@webAPI Listen, @webAPI -l, @webAPI --listen"
-			ExtractKeys       "<key...>;Extract Key=Value pairs from JSON on stdin by key name;curl ... | @webAPI Extract.Keys name status, cat res.json | @webAPI -ek text"
 			HostAddress       "<addr>;Bind address override for server (default: 127.0.0.1);-ha 10.0.0.1, --host-address 0.0.0.0, hostAddr=192.168.1.50"
 			Port              "<0-65535>;Port override for server (default: 3000);-p 8080, --port 5200, Port=9000"
 			ConfigurationFile "<path>;Path to config file (default: ./webAPI.conf);-cf ./custom.conf, --config-file prod.conf, ConfigFile=./test.conf"
@@ -82,172 +64,8 @@ function @webAPI {
 		)
 
 		function __@webAPI:help {
-			function __@webAPI:help:item {
-				local spec="${1}" args="${2}" desc="${3}" examples="${4}"
-				local pat
-				pat="$(@args:parse:generatePattern "${spec}")"
-				print -P -- "  %B${spec}%b${args:+ ${args}}"
-				print -P -- "    %F{cyan}Pattern:%f     ${pat}"
-				print -P -- "    %F{green}Description:%f ${desc}"
-				print -P -- "    %F{yellow}Examples:%f    ${examples}"
-				print ""
-			}
-
-			print -P -- "%BUsage:%b @webAPI [Command] [Options]"
-			print ""
-			local -i Idx=1
-			local S Pat
-			for S ( ${SpecNames} ) {
-				Pat="${SpecPatterns[Idx++]}"
-				[[ "$S" == "Help" ]] && print -P -- "%BServer & Lifecycle Commands:%b"
-				[[ "$S" == "Info" ]] && print -P -- "%BWeb-Terminal Bridge & JSON Commands:%b"
-				[[ "$S" == "HostAddress" ]] && print -P -- "%BConfiguration Options:%b"
-				__@webAPI:help:item "${Pat}" "${(@s.;.)HelpInfo[$S]}"
-			}
-
-			unfunction __@webAPI:help:item 2>/dev/null
-		}
-
-		function __@webAPI:state:read {
-			[[ -f "${WebAPIPaths[StateFile]}" ]] || return 1
-			local -a StateLines=("${$(<"${WebAPIPaths[StateFile]}")//(#m)([[:space:]]#|)=([[:space:]]#|)/${MATCH// /}}")
-			StateLines=("${(@fZ.C.)StateLines}")
-			(( ${#${StateLines:-}} )) || return 1
-			() {
-				emulate -LR zsh -o extendedglob -o typesetsilent -o aliases
-				@args:parse Pid:1 RepoDir:1 "${(@)ConfigSpecs}"
-				ServerState=(
-					Pid         "${Pid[1]}"
-					HostAddress "${HostAddress[1]}"
-					Port        "${Port[1]}"
-					RepoDir     "${RepoDir[1]}"
-				)
-			} "${(@)StateLines}"
-		}
-
-		function __@webAPI:paths:resolve {
-			local -a UserPathDirs=( "${(@M)path:#${HOME}/*}" )
-			local -a UserFpathDirs=( "${(@M)fpath:#${HOME}/*}" )
-			local DefaultBinDir="${XDG_BIN_HOME:-${UserPathDirs[1]:-${HOME}/.local/bin}}"
-			local DefaultFuncDir="${UserFpathDirs[1]:-${XDG_DATA_HOME:-${HOME}/.local/share}/zsh/site-functions}"
-			local DefaultDataDir="${XDG_DATA_HOME:-${${(s.:.)XDG_DATA_DIRS}[1]:-${HOME}/.local/share}}/webapi"
-			local DefaultConfigDir="${XDG_CONFIG_HOME:-${${(s.:.)XDG_CONFIG_DIRS}[1]:-${HOME}/.config}}/webapi"
-			local DefaultStateDir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}}/webapi"
-			local InstallConf="${DefaultConfigDir}/install.conf"
-
-			local -A InstallConfigs=()
-			[[ -f "${InstallConf}" ]] && {
-				local -a InstallLines=("${$(<"${InstallConf}")//(#m)([[:space:]]#|)=([[:space:]]#|)/${MATCH// /}}")
-				InstallLines=("${(@fZ.C.)InstallLines}")
-				(( ${#${InstallLines:-}} )) && { InstallConfigs=("${(@s.=.)InstallLines}") }
-			}
-
-			WebAPIPaths=(
-				RepoDir      "${InstallConfigs[RepoDir]}"
-				BinDir       "${DefaultBinDir}"
-				FuncDir      "${InstallConfigs[FuncDir]:-${DefaultFuncDir}}"
-				DataDir      "${DefaultDataDir}"
-				ConfigDir    "${DefaultConfigDir}"
-				InstallConf  "${InstallConf}"
-				StateDir     "${DefaultStateDir}"
-				StateFile    "${DefaultStateDir}/server.state"
-			)
-		}
-
-		function __@webAPI:repo:ensure {
-			local TargetDir="${1:-${WebAPIPaths[RepoDir]:-WebAPI}}"
-			local WebAPIRepoURL='https://github.com/ES-SR/WebAPI.git'
-
-			if [[ "${PWD:t}" == "${TargetDir:t}" && -d .git ]] {
-				(( Update )) && git pull --ff-only
-				WebAPIPaths[RepoDir]="${PWD}"
-				return 0
-			}
-
-			if [[ -d "${TargetDir}/.git" ]] {
-				cd "${TargetDir}" || return 1
-				git pull --ff-only
-				WebAPIPaths[RepoDir]="${PWD}"
-				return 0
-			}
-
-			git clone "${WebAPIRepoURL}" "${TargetDir}" && cd "${TargetDir}" || return 1
-			WebAPIPaths[RepoDir]="${PWD}"
-		}
-
-		function __@webAPI:update {
-			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-WebAPI}}"
-			__@webAPI:repo:ensure "${RepoTarget}"
-		}
-
-		function __@webAPI:server:run {
-			local RepoTarget="${Directory[1]:-${WebAPIPaths[RepoDir]:-WebAPI}}"
-			[[ -n "${WebAPIPaths[RepoDir]}" && -f "${WebAPIPaths[RepoDir]}/server.ts" ]] || {
-				[[ -f "server.ts" ]] && {
-					WebAPIPaths[RepoDir]="${PWD}"
-				} || {
-					__@webAPI:repo:ensure "${RepoTarget}" || return 1
-				}
-			}
-
-			local StateFile="${WebAPIPaths[StateFile]}"
-			local -A ServerState=()
-			__@webAPI:state:read && [[ -n "${ServerState[Pid]}" ]] && ( kill -0 "${ServerState[Pid]}" 2>/dev/null ) && {
-				print "Server is already running (PID ${ServerState[Pid]} at http://${ServerState[HostAddress]}:${ServerState[Port]})."
-				return 0
-			}
-
-			mkdir -p "${WebAPIPaths[StateDir]}"
-
-			local -a NodeArgs=( "--host-address=${ServerArgs[HostAddress]}" "--port=${ServerArgs[Port]}" )
-			[[ -n "${ServerArgs[ConfigurationFile]}" ]] && NodeArgs+=( "--configuration-file=${ServerArgs[ConfigurationFile]}" )
-
-			node "${WebAPIPaths[RepoDir]}/server.ts" "${(@)NodeArgs}" >/dev/null 2>&1 &
-			local ServerPid=$!
-
-			cat > "${StateFile}" <<-EOF
-				Pid = ${ServerPid}
-				HostAddress = ${ServerArgs[HostAddress]}
-				Port = ${ServerArgs[Port]}
-				RepoDir = ${WebAPIPaths[RepoDir]}
-			EOF
-
-			print "${ServerPid}"
-		}
-
-		function __@webAPI:server:stop {
-			local StateFile="${WebAPIPaths[StateFile]}"
-			[[ ! -f "${StateFile}" ]] && {
-				print "No recorded server state found at ${StateFile}."
-				return 1
-			}
-
-			local -A ServerState=()
-			__@webAPI:state:read
-			local Pid="${ServerState[Pid]}"
-
-			[[ -n "${Pid}" ]] && ( kill -0 "${Pid}" 2>/dev/null ) && {
-				kill -TERM "${Pid}"
-				print "Stopped server (PID ${Pid})."
-			} || {
-				print "Server process ${Pid} was not running."
-			}
-			rm -f "${StateFile}"
-		}
-
-		function __@webAPI:server:check {
-			local -A ServerState=()
-			__@webAPI:state:read && [[ -n "${ServerState[Pid]}" ]] && ( kill -0 "${ServerState[Pid]}" 2>/dev/null ) && {
-				print "Running: PID=${ServerState[Pid]} URL=http://${ServerState[HostAddress]}:${ServerState[Port]}"
-				return 0
-			} || {
-				print "Stopped"
-				return 1
-			}
-		}
-
-		function __@webAPI:bridge:url {
-			print -r -- "http://${ServerArgs[HostAddress]}:${ServerArgs[Port]}"
+			. "${ScriptRoot}/@/webAPI/help/__@webAPI:help.zsh"
+			__@webAPI:help
 		}
 
 		function __@webAPI:json:escape {
@@ -281,93 +99,69 @@ function @webAPI {
 			print -r -- "{${(j.,.)Pairs}}"
 		}
 
+		function __@webAPI:server {
+			. "${ScriptRoot}/@/webAPI/server/@webAPI:server.zsh"
+			@webAPI:server "${(@)argv}"
+		}
+
+		function __@webAPI:template {
+			. "${ScriptRoot}/@/webAPI/template/@webAPI:template.zsh"
+			@webAPI:template "${(@)argv}"
+		}
+
+		function __@webAPI:events {
+			. "${ScriptRoot}/@/webAPI/events/@webAPI:events.zsh"
+			@webAPI:events "${(@)argv}"
+		}
+
 		function __@webAPI:info {
-			local BridgeURL="$(__@webAPI:bridge:url)"
+			local BridgeURL="http://${ServerArgs[HostAddress]}:${ServerArgs[Port]}"
 			curl -fsSL "${BridgeURL}/bridge/state"
 			print ""
 		}
 
-		function __@webAPI:response {
-			local BridgeURL="$(__@webAPI:bridge:url)"
-			local StateJson="$(curl -fsSL "${BridgeURL}/bridge/state")"
-			(( ${#ExtractKeys} )) && {
-				print -r -- "${StateJson}" | __@webAPI:extract:keys "${(@)ExtractKeys}"
-			} || {
-				print -r -- "${StateJson}"
-			}
-		}
-
-		function __@webAPI:operation {
-			local BridgeURL="$(__@webAPI:bridge:url)"
-			local TargetProv="${1}" TargetOp=""
-			local -a RestArgs=( "${(@)argv[2,-1]}" )
-			[[ "${TargetProv}" == *":"* ]] && {
-				TargetOp="${TargetProv#*:}"
-				TargetProv="${TargetProv%%:*}"
-			} || {
-				(( ${#RestArgs} )) && [[ "${RestArgs[1]}" != *"="* ]] && {
-					TargetOp="${RestArgs[1]}"
-					RestArgs=( "${(@)RestArgs[2,-1]}" )
-				}
-			}
-			local ParamsJson="$(__@webAPI:bridge:params "${(@)RestArgs}")"
-			local Payload="{\"action\":\"select\",\"provider\":\"${TargetProv}\",\"operation\":\"${TargetOp}\",\"params\":${ParamsJson}}"
-			curl -fsSL -X POST -H "Content-Type: application/json" -d "${Payload}" "${BridgeURL}/bridge/command"
-			print ""
-		}
-
-		function __@webAPI:fill {
-			local BridgeURL="$(__@webAPI:bridge:url)"
-			local ParamsJson="$(__@webAPI:bridge:params "${(@)argv}")"
-			local Payload="{\"action\":\"fill\",\"params\":${ParamsJson}}"
-			curl -fsSL -X POST -H "Content-Type: application/json" -d "${Payload}" "${BridgeURL}/bridge/command"
-			print ""
-		}
-
 		function __@webAPI:send {
-			local BridgeURL="$(__@webAPI:bridge:url)"
+			local BridgeURL="http://${ServerArgs[HostAddress]}:${ServerArgs[Port]}"
 			local TargetProv="" TargetOp=""
-			local -a ParamArgs=( "${(@)argv}" )
-			(( ${#ParamArgs} )) && [[ "${ParamArgs[1]}" != *"="* ]] && {
-				[[ "${ParamArgs[1]}" == *":"* ]] && {
-					TargetProv="${ParamArgs[1]%%:*}"
-					TargetOp="${ParamArgs[1]#*:}"
+			local -a ParamArgs=()
+			local -a InputArgs=( "${(@)argv}" )
+
+			# Check if first non-assignment argument is a saved template name
+			(( ${#InputArgs} )) && [[ "${InputArgs[1]}" != *"="* ]] && {
+				local TplFile="${WebAPIPaths[TemplatesDir]}/${InputArgs[1]}.conf"
+				[[ -f "${TplFile}" ]] && {
+					local Line
+					for Line ( "${(@f)$(<"${TplFile}")}" ) {
+						[[ -z "${Line}" || "${Line}" == "#"* ]] && continue
+						[[ "${Line}" == Target=* ]] && {
+							local Tgt="${Line#Target=}"
+							[[ "${Tgt}" == *":"* ]] && {
+								TargetProv="${Tgt%%:*}"
+								TargetOp="${Tgt#*:}"
+							} || {
+								TargetOp="${Tgt}"
+							}
+						} || {
+							ParamArgs+=( "${Line}" )
+						}
+					}
+					InputArgs=( "${(@)InputArgs[2,-1]}" )
 				} || {
-					TargetOp="${ParamArgs[1]}"
+					[[ "${InputArgs[1]}" == *":"* ]] && {
+						TargetProv="${InputArgs[1]%%:*}"
+						TargetOp="${InputArgs[1]#*:}"
+					} || {
+						TargetOp="${InputArgs[1]}"
+					}
+					InputArgs=( "${(@)InputArgs[2,-1]}" )
 				}
-				ParamArgs=( "${(@)ParamArgs[2,-1]}" )
 			}
+			ParamArgs+=( "${(@)InputArgs}" )
+
 			local ParamsJson="$(__@webAPI:bridge:params "${(@)ParamArgs}")"
 			local Payload="{\"action\":\"execute\",\"wait\":true,\"provider\":\"${TargetProv}\",\"operation\":\"${TargetOp}\",\"params\":${ParamsJson}}"
-			local RespJson="$(curl -fsSL -X POST -H "Content-Type: application/json" -d "${Payload}" "${BridgeURL}/bridge/command")"
-			(( ${#ExtractKeys} )) && {
-				print -r -- "${RespJson}" | __@webAPI:extract:keys "${(@)ExtractKeys}"
-			} || {
-				print -r -- "${RespJson}"
-			}
-		}
-
-		function __@webAPI:listen {
-			local BridgeURL="$(__@webAPI:bridge:url)"
-			curl -sSN "${BridgeURL}/bridge/events"
-		}
-
-		function __@webAPI:extract:keys {
-			local JsonInput
-			JsonInput="$(<&0)"
-			[[ -n "${JsonInput}" ]] || return 1
-
-			local Key Pattern MatchVal
-			for Key ( "${(@)argv}" ) {
-				Pattern="\"${Key}\"[[:space:]]*:[[:space:]]*(\"([^\"]|\\\\\")*\"|[^,}\n[:space:]]+)"
-				local Remaining="${JsonInput}"
-				while [[ "${Remaining}" =~ ${Pattern} ]] {
-					MatchVal="${match[1]}"
-					MatchVal="${${MatchVal#\"}%\"}"
-					print -r -- "${Key}=${MatchVal}"
-					Remaining="${Remaining[$(( MEND + 1 )),-1]}"
-				}
-			}
+			curl -fsSL -X POST -H "Content-Type: application/json" -d "${Payload}" "${BridgeURL}/bridge/command"
+			print ""
 		}
 
 		(( ARGC )) || {
@@ -376,54 +170,14 @@ function @webAPI {
 		}
 
 		__@webAPI:paths:resolve
-
-		local -a CliArgs=( "${(@)argv}" )
-		local -a ConfigSpecs=( HostAddr.ess:1 Port:1 Conf.ig.uration.File:1 )
-		local -a ConfigDefaults=( 127.0.0.1 3000 webAPI.conf )
-
-		set -- "${(@)${(@)ConfigSpecs//(#m)*/Default${MATCH//[.:+0-9]/}}:^ConfigDefaults}"
-		@args:parse "${(@)ConfigSpecs//(#m)*/Default${MATCH}}"
-
-		# Check if CLI specified a configuration file
-		set -- "${(@)CliArgs}"
-		@args:parse Conf.ig.uration.File:1
-		local CfgFile="${ConfigurationFile[1]:-${WebAPIPaths[RepoDir]:-${PWD}}/${DefaultConfigurationFile[1]:-webAPI.conf}}"
-
-		[[ -f "${CfgFile}" ]] && {
-			local -a ConfigLines=("${$(<"${CfgFile}")//(#m)([[:space:]]#|)=([[:space:]]#|)/${MATCH// /}}")
-			ConfigLines=("${(@fZ.C.)ConfigLines}")
-			set -- "${(@)ConfigLines//(#m)*/File${MATCH}}"
-			@args:parse "${(@)ConfigSpecs//(#m)*/File${MATCH}}"
-		}
-
-		set -- "${(@)CliArgs}"
-		@args:parse "${(@)ConfigSpecs//(#m)*/${MATCH}}"
-		local -a RemainingArgv=( "${(@)Argv}" )
-
-		local -A ServerArgs=()
-		local S
-		for S ( ${ConfigSpecs} ) {
-			S="${S//[.:0-9]/}"
-			local CliArg="${${(P)S}[1]}"
-			local FileArg="File${S}"
-			local FileArg="${${(P)FileArg}[1]}"
-			local DefaultArg="Default${S}"
-			local DefaultArg="${${(P)DefaultArg}[1]}"
-			ServerArgs[$S]="${CliArg:-${FileArg:-${DefaultArg}}}"
-		}
+		__@webAPI:config:resolve "${(@)argv}"
 
 		local -a CommandSpecs=(
 			Help
-			Update
-			ServerRun ServerStop ServerCheck
-			Bridge.Url
+			Server
+			Template
+			Events
 			Info
-			Resp.onse:+
-			Op.eration:+
-			Fill:+
-			Send:+
-			Listen:+
-			Extract.Keys:+
 			Dir.ectory:1
 		)
 		set -- "${(@)RemainingArgv}"
@@ -434,19 +188,19 @@ function @webAPI {
 			return 0
 		}
 
-		local -i ExitCode=0
+		local -i ExitCode=0 Dispatched=0
 		local S
 		for S ( ${CommandNames} ) {
 			local Vals=( ${(P)S} )
 			(( ${#Vals[1]/0/} )) && {
-				[[ "$S" == "ExtractKeys" ]] && (( ${#Response[1]/0/} || ${#Send[1]/0/} )) && continue
+				Dispatched=1
 				local Cmd="__@webAPI${S//(#m)[A-Z]/:${(L)MATCH}}"
-				[[ "$S" == (Help|Update|ServerRun|ServerStop|ServerCheck|BridgeUrl|Info) ]] && {
-					$Cmd || ExitCode=$?
-				} || {
-					$Cmd "${(@)Vals}" || ExitCode=$?
-				}
+				$Cmd "${(@)Argv}" || ExitCode=$?
 			}
+		}
+
+		(( Dispatched )) || {
+			__@webAPI:send "${(@)Argv}" || ExitCode=$?
 		}
 		return ${ExitCode}
 	} always {
@@ -455,11 +209,9 @@ function @webAPI {
 			unfunction "__@webAPI${S//(#m)[A-Z]/:${(L)MATCH}}" 2>/dev/null
 		}
 		unfunction \
-			__@webAPI:paths:resolve \
-			__@webAPI:repo:ensure \
-			__@webAPI:state:read \
-			__@webAPI:bridge:params \
 			__@webAPI:json:escape \
+			__@webAPI:bridge:params \
+			__@webAPI:send \
 			2>/dev/null
 	}
 }
