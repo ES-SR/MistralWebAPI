@@ -16,3 +16,12 @@ jobs:
       # Zero-dependency project: no npm install needed.
       - name: Syntax-check all JS/TS + boot server and probe routes
         run: npm run smoke
+
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Syntax-check all zsh files
+        run: find @ tests -name '*.zsh' -print0; ls @webAPI _@webAPI install.zsh; find @ tests -name '*.zsh' -print0 | xargs -0 -n1 zsh -n && zsh -n @webAPI && zsh -n _@webAPI && zsh -n install.zsh
+
+      - name: Run @webAPI zsh test suite
+        run: zsh tests/test@webAPI.zsh
