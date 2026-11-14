@@ -47,39 +47,39 @@
 		local InstallConf="${DefaultConfigDir}/install.conf"
 
 		local RepoDir="" FuncDir="${DefaultFuncDir}"
-		if [[ -f "${InstallConf}" ]] {
+		[[ -f "${InstallConf}" ]] && {
 			. <(print -rl -- "${(@)${(@f)$(<"${InstallConf}")}//[[:space:]]/}")
 		}
 
 		local RepoTarget="${Directory[1]:-${RepoDir:-${PWD}/WebAPI}}"
-		if [[ -f "${PWD}/server.ts" && -d "${PWD}/.git" ]] {
+		[[ -f "${PWD}/server.ts" && -d "${PWD}/.git" ]] && {
 			RepoTarget="${PWD}"
 		}
 
-		if [[ -t 0 ]] {
+		[[ -t 0 ]] && {
 			vared -p "Repository directory: " -c RepoTarget
 		}
 		[[ -n "${RepoTarget}" ]] || return 1
 
 		local WebAPIRepoURL='https://github.com/ES-SR/WebAPI.git'
-		if [[ "${PWD:t}" == "${RepoTarget:t}" && -d .git ]] {
+		[[ "${PWD:t}" == "${RepoTarget:t}" && -d .git ]] && {
 			(( Update )) && git pull --ff-only
 			RepoDir="${PWD}"
-		} elif [[ -d "${RepoTarget}/.git" ]] {
+		} || [[ -d "${RepoTarget}/.git" ]] && {
 			cd "${RepoTarget}" || return 1
 			(( Update )) && git pull --ff-only
 			RepoDir="${PWD}"
-		} else {
+		} || {
 			git clone "${WebAPIRepoURL}" "${RepoTarget}" && cd "${RepoTarget}" || return 1
 			RepoDir="${PWD}"
 		}
 
 		local TargetFuncDir="${FuncDirectory[1]:-${FuncDir}}"
-		if [[ -t 0 ]] {
+		[[ -t 0 ]] && {
 			vared -p "Directory to install '@webAPI' and '_@webAPI' functions (leave empty to skip): " -c TargetFuncDir
 		}
 
-		if [[ -n "${TargetFuncDir}" ]] {
+		[[ -n "${TargetFuncDir}" ]] && {
 			mkdir -p "${TargetFuncDir}" "${DefaultConfigDir}"
 			cp -f "${RepoDir}/@webAPI" "${TargetFuncDir}/@webAPI"
 			cp -f "${RepoDir}/_@webAPI" "${TargetFuncDir}/_@webAPI"
@@ -93,24 +93,24 @@
 			print "Installed '@webAPI' and '_@webAPI' into ${TargetFuncDir}"
 
 			local AddFpath="yes"
-			if [[ -t 0 ]] {
+			[[ -t 0 ]] && {
 				vared -p "Add ${TargetFuncDir} to \$fpath and autoload @webAPI? [yes/no]: " -c AddFpath
 			}
 
-			if [[ "${AddFpath}" == (#i)y(es|) ]] {
-				if (( ! ${fpath[(Ie)${TargetFuncDir}]} )) {
+			[[ "${AddFpath}" == (#i)y(es|) ]] && {
+				(( ! ${fpath[(Ie)${TargetFuncDir}]} )) && {
 					fpath=( "${TargetFuncDir}" "${(@)fpath}" )
 				}
 				autoload -z @webAPI _@webAPI
 				(( ${+functions[compdef]} )) && compdef _@webAPI @webAPI
 
 				local ZshRcFile="${ZDOTDIR:-${HOME}}/.zshrc"
-				if [[ -t 0 ]] {
+				[[ -t 0 ]] && {
 					vared -p "Zsh startup file to persist fpath & autoload (leave empty to skip): " -c ZshRcFile
 				}
 
-				if [[ -n "${ZshRcFile}" ]] {
-					if [[ ! -f "${ZshRcFile}" || "$(<"${ZshRcFile}")" != *"autoload -z @webAPI"* ]] {
+				[[ -n "${ZshRcFile}" ]] && {
+					[[ ! -f "${ZshRcFile}" || "$(<"${ZshRcFile}")" != *"autoload -z @webAPI"* ]] && {
 						cat >> "${ZshRcFile}" <<-EOF
 
 							# @webAPI CLI & completion
@@ -119,7 +119,7 @@
 							(( \${+functions[compdef]} )) && compdef _@webAPI @webAPI
 						EOF
 						print "Added fpath & autoload configuration to ${ZshRcFile}"
-					} else {
+					} || {
 						print "${ZshRcFile} already contains @webAPI autoload configuration."
 					}
 				}

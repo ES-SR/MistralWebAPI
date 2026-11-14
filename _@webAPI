@@ -185,7 +185,7 @@ function _@webAPI {
 		local PrevWord="${words[CURRENT-1]}"
 		local ContextKey=""
 
-		if [[ "${CurWord}" == (#b)([^=]##)=(*) ]] {
+		[[ "${CurWord}" == (#b)([^=]##)=(*) ]] && {
 			local FlagPart="${match[1]}"
 			for CtxName ( Port HostAddress ConfigurationFile Directory ) {
 				[[ "${FlagPart}" == ${~FlagPats[${CtxName}]} ]] && {
@@ -193,7 +193,7 @@ function _@webAPI {
 					break
 				}
 			}
-			if [[ -n "${ContextKey}" ]] {
+			[[ -n "${ContextKey}" ]] && {
 				compset -P '*='
 				"${ContextDispatch[${ContextKey}]}"
 				return 0
@@ -207,7 +207,7 @@ function _@webAPI {
 			}
 		}
 
-		if [[ -z "${ContextKey}" ]] {
+		[[ -z "${ContextKey}" ]] && {
 			local -i Idx
 			for (( Idx = CURRENT - 1; Idx >= 2; Idx-- )) {
 				local Word="${words[Idx]}"
@@ -220,7 +220,7 @@ function _@webAPI {
 			}
 		}
 
-		if [[ -n "${ContextKey}" ]] {
+		[[ -n "${ContextKey}" ]] && {
 			"${ContextDispatch[${ContextKey}]}"
 			return 0
 		}
