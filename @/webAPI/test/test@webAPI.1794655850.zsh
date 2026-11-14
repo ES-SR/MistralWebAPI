@@ -1,0 +1,615 @@
+#!/usr/bin/env zsh
+emulate -LR zsh -o extendedglob -o typesetsilent -o aliases
+setopt aliases
+
+function @print:pel {
+	emulate -L zsh; options[extendedglob]=on
+
+	local -a Args=(${argv})
+
+	local -i LJustify=${Args[(i)(#s)[0-9]#(#e)]}
+	local -i RJustify=${Args[(I)(#s)[0-9]#(#e)]}
+	(( LJustify == RJustify )) && {
+		(( ARGC / 2.0 < LJustify )) && {
+			(( LJustify = 0 ))
+			RJustify=$Args[$RJustify]
+			Args=(${Args:#$RJustify})
+		} || {
+			(( RJustify = 0 ))
+			LJustify=$Args[$LJustify]
+			Args=(${Args:#$LJustify})
+		}
+	} || {
+		RJustify=${${Args[$RJustify]}:-0}
+		LJustify=${${Args[$LJustify]}:-0}
+		Args=(${Args:#$LJustify})
+		Args=(${Args:#$RJustify})
+	}
+	local -i LJ=${LJustify}
+	local -i RJ=${RJustify}
+	(( LJ + RJ )) || {
+		(( LJ = 1 , RJ = 1 ))
+	}
+	(( LJ = LJ * COLUMNS / ( LJ + RJ ) ))
+	(( RJ = COLUMNS - LJ ))
+
+	local LMargin=${Args[(r)(#s)[^[:alnum:]]#(#e)]}
+	local RMargin=${Args[(R)(#s)[^[:alnum:]]#(#e)]}
+	(( ${(c)#LMargin} + ${(c)#RMargin} )) && {
+		Args=(${Args:#$LMargin})
+		Args=(${Args:#$RMargin})
+	}
+
+	local LPadding=${Args[(r)(#s)[^[:alnum:]]#(#e)]}
+	local RPadding=${Args[(R)(#s)[^[:alnum:]]#(#e)]}
+	(( ${(c)#LPadding} + ${(c)#RPadding} )) && {
+		Args=(${Args:#$LPadding})
+		Args=(${Args:#$RPadding})
+	}
+
+	local Content LP RP LM RM
+	(( $#Args )) && {
+		LP=${LPadding:-" "}
+		RP=${RPadding:-" "}
+		LM=${LMargin:-"-"}
+		RM=${RMargin:-"-"}
+
+		Content=${Args}
+		Args=()
+	} || {
+		LM=${LMargin}
+		RM=${RMargin}
+		LP=${LPadding:-$LM}
+		RP=${RPadding:-$RM}
+		Content="${LP}${RP}"
+		(( ${(c)#Content} )) || {
+			print -- ${(l.((COLUMNS))..-.)}
+			return
+		}
+	}
+
+	print -P -- ${(pel.((LJ))..$LM..$LP.r.((RJ))..$RM..$RP.)Content}
+}
+
+# Ensure __@args:parse exists in current shell
+(( ${+functions[__@args:parse]} )) || {
+	function __@args:parse {
+		emulate -LR zsh -o extendedglob -o typesetsilent
+		{
+			local -a Specs=("${(@)argv[2,-1]}") FlagNames FlagMaxExtracts FlagPatterns
+			local Spec
+			for Spec ("${(@)Specs}") {
+				local -a SpecParts=("${(@s.:.)Spec}")
+
+				local MaxExtracts="${${(M)Spec%:${~:-"(+|<->)"}}#:}"
+				SpecParts=(${SpecParts:#$MaxExtracts})
+				MaxExtracts=${MaxExtracts:-0}
+
+				local Name=${SpecParts[-1]}
+				SpecParts[-1]=()
+
+				local Pattern=${${(j.:.)SpecParts}:-$(@args:parse:generatePattern "${Name}")}
+
+				Name="${${${${${Name//,*\//}//\/*./}//[.\/]/}//[^-[:alnum:]]/}//-/_}"
+
+				FlagNames+=("${Name}")
+				FlagPatterns+=("${Pattern}")
+				FlagMaxExtracts+=(${MaxExtracts})
+
+				[[ ${(tP)Name} = (*|)tag(*|) ]] && {
+					local -a PrevVals=(${"${(@P)Name}":-})
+					local -at "${Name}"
+					set -A "${Name}" "${(@)PrevVals}"
+				} || {
+					local -a "${Name}"
+				}
+				(( ${MaxExtracts/+/1} )) || {
+					set -A "${Name}" "${${(P)Name}:-0}"
+				}
+			}
+
+			set -- "${(@P)1}"
+
+			local MetaPat="${(j.|.)FlagPatterns}"
+
+			local -i Idx
+			local -a PrevFlagInfo=(${"${(@)FlagInfo}":-})
+			local -a Argv FlagInfo
+			while (( ${Idx::=${argv[(I)${~MetaPat}]}} )) {
+				argv[$Idx]=("${${argv[$Idx]}%%=*}" ${"${${(M)${argv[$Idx]}%%=*}#=}":-})
+				local RawFlag="${argv[$Idx]}"
+				local FNIdx=${FlagPatterns//(#m)*/${${${RawFlag}[(r)${~MATCH},(R)${~MATCH}]}:+${FlagPatterns[(ie)$MATCH]}}}
+				local FlagName="${FlagNames[$FNIdx]}"
+				local MaxExtract="${${FlagMaxExtracts[$FNIdx]}/+/${ARGC}}"
+				set -A FlagInfo "${FlagName}:${Idx}:${RawFlag}" "${(@)FlagInfo}"
+				set -A "${FlagName}" "${(@P)FlagName}" "${(@)argv[$((Idx+1)),$((Idx + MaxExtract))]}"
+				(( MaxExtract )) || {
+					set -A "${FlagName}" $(( "${(P)FlagName:-0}" + 1 ))
+				}
+				set -A Argv "${(@)argv[$((Idx+1+MaxExtract)),-1]}" "${(@)Argv}"
+				argv[$Idx,-1]=()
+			}
+
+			set -A Argv "${(@)argv}" "${(@)Argv}"
+			set -A FlagInfo "${(@)PrevFlagInfo}" ${(@)PrevFlagInfo:+;;} "${(@)FlagInfo}"
+
+			local FN
+			for FN ($FlagNames Argv FlagInfo) {
+				typeset -p1 -- ${FN}
+			}
+		}
+	}
+
+	function __@args:parse:bridge {
+		print -r -- 'eval "$(__@args:parse __ArgsParseArgv "${(@)argv}")"'
+	}
+
+	alias @args:parse='local -a __ArgsParseArgv=("${(@)argv}"); . <(__@args:parse:bridge)'
+
+	function @args:parse:generatePattern {
+		emulate -LR zsh -o extendedglob -o typesetsilent
+
+		(( ARGC )) || return 1
+		(( ARGC == 1 )) && [[ $1 = (-|--)(#i)(h(elp|)) ]] && {
+			<<-"EOF"
+				. the following segment is optional
+				, the following preceding segment is an alternate
+				/ the following segment is applied to the end of each preceding segment
+			EOF
+			return
+		}
+
+		local Arg
+		for Arg {
+			# 1. Normalize camelCase into required word boundaries (FileDest -> File-Dest)
+			local SpecNorm="${Arg//(#b)([a-z0-9])((.|)[A-Z])/$match[1]-$match[2]}"
+
+			# 2. Split into required words on '-'
+			local -a Words=(${(s.-.)SpecNorm})
+			local -a LongWordPats=()
+			local -a ShortChars=()
+
+			local Word
+			for Word ( "${(@)Words}" ) {
+				# Short flag anchor: first letter of required word stem
+				ShortChars+=( "${${Word/[^[:alnum:]]/}[1]}" )
+
+				# Split word into optional segments on '.'
+				local -a Segs=( ${(s:.:)Word} )
+				local -a Stems=() Slashes=() Alts=()
+
+				# Parse individual segment DSL structures
+				local Seg
+				for Seg ( "${(@)Segs}" ) {
+					if [[ "$Seg" = *","* ]] {
+						# Handle Stem,Alt1/Alt2 syntax (e.g., ector,y/ies)
+						local Stem="${Seg%%,*}"
+						local Rest="${Seg#*,}"
+						local -a AltList=(${(s./.)Rest})
+						Stems+=("${Stem}")
+						Slashes+=("")
+						Alts+=("${(j.|.)AltList}")
+					} elif [[ "${Seg}" = *"/"* ]] {
+						# Handle Stem/Slash syntax (e.g., Dir/s)
+						Stems+=("${Seg%%/*}")
+						Slashes+=("${Seg#*/}")
+						Alts+=("")
+					} else {
+						Stems+=("${Seg}")
+						Slashes+=("")
+						Alts+=("")
+					}
+				}
+
+				# Pass 1: Backward propagation of slashes to preceding segments
+				local CurrSlash=""
+				local -i I
+				for (( I=${#Segs}; I>=1; I-- )) {
+					if [[ -n "${Slashes[$I]}" ]] {
+						CurrSlash="${Slashes[$I]}"
+					} elif [[ -n "${Alts[$I]}" ]] {
+						CurrSlash=""
+					} else {
+						Slashes[$I]="${CurrSlash}"
+					}
+				}
+
+				# Pass 2: Right-to-left nested group pattern assembly
+				local WordPat=""
+				for (( I=${#Segs}; I>=1; I-- )) {
+					local Stem="${Stems[$I]}"
+					local Slash="${Slashes[$I]}"
+					local Alt="${Alts[$I]}"
+
+					local SegPat="${Stem}"
+					[[ -n "${Alt}" ]] && { SegPat="${Stem}(${Alt})" }
+
+					if (( I == ${#Segs} )) {
+						if [[ -n "${Alt}" ]] {
+							WordPat="${SegPat}"
+						} elif [[ -n "${Slash}" ]] {
+							WordPat="${Stem}(${Slash}|)"
+						} else {
+							WordPat="${SegPat}"
+						}
+					} else {
+						WordPat="${SegPat}(${Slash:+${Slash}|}${WordPat}|)"
+					}
+				}
+
+				if [[ "${Word[1]}" = "." ]] {
+					WordPat="(${WordPat}|)"
+				}
+
+				LongWordPats+=("${WordPat}")
+			}
+
+			# 3. Combine long forms and short forms
+			local PartJoint="([-_.]|)"
+			local LongPattern="${(pj.$PartJoint.)LongWordPats}"
+			local ShortPattern="${(pj.$PartJoint.)ShortChars}"
+
+			local FullPattern=""
+			[[ "${LongPattern}" = "${ShortPattern}" ]] && {
+				FullPattern="(-|--)${LongPattern}"
+			} || {
+				FullPattern="((-|--|)${LongPattern})|((-|--)${ShortPattern})"
+			}
+
+			# Wrap in Zsh string anchors, case insensitivity, and optional assignment matching
+			print -r -- "(#s)(#i)(${FullPattern})(=*|)(#e)"
+		}
+	}
+}
+
+() {
+	emulate -LR zsh -o extendedglob -o typesetsilent -o aliases
+	setopt aliases
+
+	local ScriptFile="${(%):-%x}"
+	local ScriptDir="${ScriptFile:A:h}"
+	local WebAPIBin="${PWD}/@webAPI"
+	[[ -f "${ScriptDir:h:h:h}/@webAPI" ]] && {
+		WebAPIBin="${ScriptDir:h:h:h}/@webAPI"
+	} || {
+		[[ -f "${ScriptDir:h}/@webAPI" ]] && {
+			WebAPIBin="${ScriptDir:h}/@webAPI"
+		}
+	}
+
+	local -i PassCount=0
+	local -i FailCount=0
+
+	function test@webAPI:assert:equal {
+		local TestName="${1}"
+		local Got="${2}"
+		local Expected="${3}"
+		[[ "$Got" == "$Expected" ]] && {
+			(( PassCount++ ))
+			print -P -- "%F{green}  [PASS]%f ${TestName}"
+		} || {
+			(( FailCount++ ))
+			print -P -- "%F{red}  [FAIL]%f ${TestName}"
+			print -P -- "         Expected: %F{yellow}${Expected}%f"
+			print -P -- "         Got:      %F{red}${Got}%f"
+		}
+	}
+
+	function test@webAPI:assert:true {
+		local TestName="${1}"
+		local Val="${2}"
+		(( Val )) && {
+			(( FailCount++ ))
+			print -P -- "%F{red}  [FAIL]%f ${TestName} (exit status: ${Val})"
+		} || {
+			(( PassCount++ ))
+			print -P -- "%F{green}  [PASS]%f ${TestName}"
+		}
+	}
+
+	# The 3-tier config parsing function mirroring @webAPI & user specification
+	function test@webAPI:parse:configHierarchy {
+		emulate -LR zsh -o extendedglob -o typesetsilent -o aliases
+		setopt aliases
+		local ConfPath="${1}"
+		shift
+
+		local -a ConfigSpecs=( HostAddr.ess:1 Port:1 Conf.ig.uration.File:1 )
+		local -a ConfigDefaults=( 127.0.0.1 3000 webAPI.conf )
+		local -at HostAddress Port ConfigurationFile
+
+		# 1. CLI args (highest precedence)
+		@args:parse "${(@)ConfigSpecs}"
+
+		# 2. Config file (middle precedence)
+		[[ -n "${ConfPath}" && -f "${ConfPath}" ]] && {
+			local -a ConfigLines=("${$(<"${ConfPath}")//(#m)([[:space:]]#|)=([[:space:]]#|)/${MATCH// /}}")
+			ConfigLines=("${(@fZ.C.)ConfigLines}")
+			set -- "${(@)ConfigLines}"
+			@args:parse "${(@)ConfigSpecs}"
+		}
+
+		# 3. Defaults (lowest precedence)
+		set -- "${(@)${(@)ConfigSpecs//[.:+0-9]/}:^ConfigDefaults}"
+		@args:parse "${(@)ConfigSpecs}"
+
+		local -A ServerArgs=()
+		local S
+		for S ( ${ConfigSpecs//[.:0-9]/} ) {
+			ServerArgs[$S]="${${(P)S}[1]}"
+		}
+
+		print -r -- "${ServerArgs[HostAddress]}|${ServerArgs[Port]}|${ServerArgs[ConfigurationFile]}"
+	}
+
+	# Use XDG runtime directory with safe fallback per convention
+	local TestBaseDir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
+	local TestTmpDir="${TestBaseDir}/webapi-test-${$}-${RANDOM}"
+	mkdir -p "${TestTmpDir}"
+
+	{
+		@print:pel "Section 1: User Reference Pass Cases (Defaults -> File -> CLI)"
+
+		# Test 1.1: Defaults only
+		local Res="$(test@webAPI:parse:configHierarchy "")"
+		test@webAPI:assert:equal "Defaults only: HostAddress" "${Res[(ws:|:)1]}" "127.0.0.1"
+		test@webAPI:assert:equal "Defaults only: Port" "${Res[(ws:|:)2]}" "3000"
+		test@webAPI:assert:equal "Defaults only: ConfigurationFile" "${Res[(ws:|:)3]}" "webAPI.conf"
+
+		# Test 1.2: Config file values loaded (matching prompt 4196)
+		local TestConf="${TestTmpDir}/Test.conf"
+		cat > "$TestConf" <<-EOF
+			# a comment
+			Port=5200
+			# an empty value
+			HostAddress=192.168.1.100
+			Other = spaceAroundEquals #trailing comment
+		EOF
+		Res="$(test@webAPI:parse:configHierarchy "$TestConf")"
+		test@webAPI:assert:equal "Config file: HostAddress loaded" "${Res[(ws:|:)1]}" "192.168.1.100"
+		test@webAPI:assert:equal "Config file: Port loaded" "${Res[(ws:|:)2]}" "5200"
+
+		# Test 1.3: User prompt test case: -p 4444 hostAddr=10.0.0.1 overrides config file
+		Res="$(test@webAPI:parse:configHierarchy "$TestConf" -p 4444 hostAddr=10.0.0.1)"
+		test@webAPI:assert:equal "User Case: HostAddress overridden by hostAddr=" "${Res[(ws:|:)1]}" "10.0.0.1"
+		test@webAPI:assert:equal "User Case: Port overridden by -p 4444" "${Res[(ws:|:)2]}" "4444"
+		test@webAPI:assert:equal "User Case: ConfigurationFile default preserved" "${Res[(ws:|:)3]}" "webAPI.conf"
+
+		# Test 1.4: Partial override: CLI -p 8888 only, Host from config file
+		Res="$(test@webAPI:parse:configHierarchy "$TestConf" -p 8888)"
+		test@webAPI:assert:equal "Partial override: Host from config file" "${Res[(ws:|:)1]}" "192.168.1.100"
+		test@webAPI:assert:equal "Partial override: Port from CLI" "${Res[(ws:|:)2]}" "8888"
+
+		# Test 1.5: Partial override: CLI -ha 10.0.0.9 only, Port from config file
+		Res="$(test@webAPI:parse:configHierarchy "$TestConf" -ha 10.0.0.9)"
+		test@webAPI:assert:equal "Partial override: Host from CLI" "${Res[(ws:|:)1]}" "10.0.0.9"
+		test@webAPI:assert:equal "Partial override: Port from config file" "${Res[(ws:|:)2]}" "5200"
+
+		# Test 1.6: Empty config file falls back to defaults
+		local EmptyConf="${TestTmpDir}/empty.conf"
+		</dev/null >| "$EmptyConf"
+		Res="$(test@webAPI:parse:configHierarchy "$EmptyConf")"
+		test@webAPI:assert:equal "Empty config file: Host default" "${Res[(ws:|:)1]}" "127.0.0.1"
+		test@webAPI:assert:equal "Empty config file: Port default" "${Res[(ws:|:)2]}" "3000"
+
+		# Test 1.7: Config file with empty value Host= falls back to default
+		local EmptyValConf="${TestTmpDir}/empty_val.conf"
+		cat > "$EmptyValConf" <<-EOF
+			# comment
+			Port=6100
+			Host=
+		EOF
+		Res="$(test@webAPI:parse:configHierarchy "$EmptyValConf")"
+		test@webAPI:assert:equal "Empty val Host=: fallback to default" "${Res[(ws:|:)1]}" "127.0.0.1"
+		test@webAPI:assert:equal "Empty val Host=: Port takes file value" "${Res[(ws:|:)2]}" "6100"
+
+		@print:pel "Section 2: @args:parse DSL Pattern Verification"
+
+		local -a Specs=(
+			Help ServerRun ServerStop HostAddr.ess Port Conf.ig.uration.File
+			Info Op.eration Fill Send Resp.onse Listen Extract.Keys
+		)
+		local Spec Pat
+		for Spec ( "${Specs[@]}" ) {
+			Pat="$(@args:parse:generatePattern "$Spec")"
+			[[ -n "$Pat" ]]
+			test@webAPI:assert:true "Pattern generated for $Spec" $?
+		}
+
+		# Test CLI flag variations for HostAddr.ess
+		Res="$(test@webAPI:parse:configHierarchy "" -ha 10.0.0.4)"
+		test@webAPI:assert:equal "Flag -ha: HostAddress" "${Res[(ws:|:)1]}" "10.0.0.4"
+
+		Res="$(test@webAPI:parse:configHierarchy "" --host-addr 10.0.0.5)"
+		test@webAPI:assert:equal "Flag --host-addr: HostAddress" "${Res[(ws:|:)1]}" "10.0.0.5"
+
+		Res="$(test@webAPI:parse:configHierarchy "" --host-address 10.0.0.6)"
+		test@webAPI:assert:equal "Flag --host-address: HostAddress" "${Res[(ws:|:)1]}" "10.0.0.6"
+
+		Res="$(test@webAPI:parse:configHierarchy "" HostAddress=10.0.0.7)"
+		test@webAPI:assert:equal "Assignment HostAddress=: HostAddress" "${Res[(ws:|:)1]}" "10.0.0.7"
+
+		Res="$(test@webAPI:parse:configHierarchy "" hostAddr=10.0.0.8)"
+		test@webAPI:assert:equal "Assignment hostAddr=: HostAddress" "${Res[(ws:|:)1]}" "10.0.0.8"
+
+		# Test CLI flag variations for Port
+		Res="$(test@webAPI:parse:configHierarchy "" -p 9001)"
+		test@webAPI:assert:equal "Flag -p: Port" "${Res[(ws:|:)2]}" "9001"
+
+		Res="$(test@webAPI:parse:configHierarchy "" --port 9002)"
+		test@webAPI:assert:equal "Flag --port: Port" "${Res[(ws:|:)2]}" "9002"
+
+		Res="$(test@webAPI:parse:configHierarchy "" Port=9003)"
+		test@webAPI:assert:equal "Assignment Port=: Port" "${Res[(ws:|:)2]}" "9003"
+
+		# Test CLI flag variations for Conf.ig.uration.File
+		Res="$(test@webAPI:parse:configHierarchy "" -cf custom.conf)"
+		test@webAPI:assert:equal "Flag -cf: ConfigurationFile" "${Res[(ws:|:)3]}" "custom.conf"
+
+		Res="$(test@webAPI:parse:configHierarchy "" --configuration-file other.conf)"
+		test@webAPI:assert:equal "Flag --configuration-file: ConfigurationFile" "${Res[(ws:|:)3]}" "other.conf"
+
+		@print:pel "Section 3: Runtime State File Isolation (__@webAPI:state:read)"
+
+		local StateDir="${TestTmpDir}/state/webapi"
+		mkdir -p "$StateDir"
+		local StateFile="${StateDir}/server.state"
+		cat > "$StateFile" <<-EOF
+			Pid = 54321
+			HostAddress = 10.10.10.10
+			Port = 7777
+			RepoDir = ${TestTmpDir}/mock_repo
+		EOF
+
+		local -a ConfigSpecs=( HostAddr.ess:1 Port:1 Conf.ig.uration.File:1 )
+		local -A WebAPIPaths=( StateFile "$StateFile" )
+		local -A ServerState=()
+
+		function test@webAPI:state:read {
+			[[ -f "${WebAPIPaths[StateFile]}" ]] || return 1
+			local -a StateLines=("${$(<"${WebAPIPaths[StateFile]}")//(#m)([[:space:]]#|)=([[:space:]]#|)/${MATCH// /}}")
+			StateLines=("${(@fZ.C.)StateLines}")
+			(( ${#${StateLines:-}} )) || return 1
+			() {
+				emulate -LR zsh -o extendedglob -o typesetsilent -o aliases
+				@args:parse Pid:1 RepoDir:1 "${(@)ConfigSpecs}"
+				ServerState=(
+					Pid         "${Pid[1]}"
+					HostAddress "${HostAddress[1]}"
+					Port        "${Port[1]}"
+					RepoDir     "${RepoDir[1]}"
+				)
+			} "${(@)StateLines}"
+		}
+
+		test@webAPI:state:read
+		test@webAPI:assert:true "state:read success" $?
+		test@webAPI:assert:equal "ServerState[Pid]" "${ServerState[Pid]}" "54321"
+		test@webAPI:assert:equal "ServerState[HostAddress]" "${ServerState[HostAddress]}" "10.10.10.10"
+		test@webAPI:assert:equal "ServerState[Port]" "${ServerState[Port]}" "7777"
+		test@webAPI:assert:equal "ServerState[RepoDir]" "${ServerState[RepoDir]}" "${TestTmpDir}/mock_repo"
+
+		# Verify ServerArgs is unaffected by state read
+		local -A ServerArgs=( HostAddress "127.0.0.1" Port "3000" )
+		test@webAPI:state:read
+		test@webAPI:assert:equal "Isolation: ServerArgs[HostAddress] unaffected" "${ServerArgs[HostAddress]}" "127.0.0.1"
+		test@webAPI:assert:equal "Isolation: ServerArgs[Port] unaffected" "${ServerArgs[Port]}" "3000"
+
+		# Missing state file returns 1
+		WebAPIPaths[StateFile]="${TestTmpDir}/missing.state"
+		ServerState=()
+		test@webAPI:state:read
+		test@webAPI:assert:equal "Missing state file returns 1" "$?" "1"
+
+		# Empty state file returns 1
+		local EmptyState="${TestTmpDir}/empty.state"
+		</dev/null >| "$EmptyState"
+		WebAPIPaths[StateFile]="$EmptyState"
+		ServerState=()
+		test@webAPI:state:read
+		test@webAPI:assert:equal "Empty state file returns 1" "$?" "1"
+
+		@print:pel "Section 4: End-to-End @webAPI Binary Tests"
+
+		# Test server status when stopped
+		local StatusOut
+		StatusOut="$(XDG_RUNTIME_DIR="${TestTmpDir}/runtime" zsh "${WebAPIBin}" server status 2>/dev/null)"
+		local StatusExit=$?
+		test@webAPI:assert:equal "E2E: server status exit code when stopped" "$StatusExit" "1"
+		test@webAPI:assert:equal "E2E: server status prints Stopped" "$StatusOut" "Stopped"
+
+		# Test @webAPI:server status when stopped
+		StatusOut="$(XDG_RUNTIME_DIR="${TestTmpDir}/runtime" zsh -c "source \"${WebAPIBin:h}/@/webAPI/server/@webAPI:server.zsh\" && @webAPI:server status" 2>/dev/null)"
+		StatusExit=$?
+		test@webAPI:assert:equal "E2E: @webAPI:server status exit code when stopped" "$StatusExit" "1"
+		test@webAPI:assert:equal "E2E: @webAPI:server status prints Stopped" "$StatusOut" "Stopped"
+
+		# Test server status and @webAPI:server status when running with HostAddress
+		local RunningStateDir="${TestTmpDir}/runtime_running/webapi"
+		mkdir -p "${RunningStateDir}"
+		cat > "${RunningStateDir}/server.state" <<-EOF
+			Pid = $$
+			HostAddress = 127.0.0.1
+			Port = 3000
+			RepoDir = ${TestTmpDir}
+		EOF
+		StatusOut="$(XDG_RUNTIME_DIR="${TestTmpDir}/runtime_running" zsh "${WebAPIBin}" server status 2>/dev/null)"
+		StatusExit=$?
+		test@webAPI:assert:equal "E2E: server status exit code when running" "$StatusExit" "0"
+		test@webAPI:assert:equal "E2E: server status reports running with HostAddress" "$StatusOut" "Running: PID=$$ URL=http://127.0.0.1:3000"
+
+		StatusOut="$(XDG_RUNTIME_DIR="${TestTmpDir}/runtime_running" zsh -c "source \"${WebAPIBin:h}/@/webAPI/server/@webAPI:server.zsh\" && @webAPI:server status" 2>/dev/null)"
+		StatusExit=$?
+		test@webAPI:assert:equal "E2E: @webAPI:server status exit code when running" "$StatusExit" "0"
+		test@webAPI:assert:equal "E2E: @webAPI:server status reports running" "$StatusOut" "Running: PID=$$ URL=http://127.0.0.1:3000"
+
+		# Test template new / list / edit / remove
+		local TplHome="${TestTmpDir}/tpl_home"
+		local TplOut
+		TplOut="$(XDG_CONFIG_HOME="${TplHome}" zsh "${WebAPIBin}" template new demo mistral:chat model=mistral-large 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: template new exit code" "$?" "0"
+		test@webAPI:assert:true "E2E: template file created" $([[ -f "${TplHome}/webapi/templates/demo.conf" ]] && echo 0 || echo 1)
+
+		TplOut="$(XDG_CONFIG_HOME="${TplHome}" zsh "${WebAPIBin}" template list 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: template list returns demo" "$TplOut" "demo"
+
+		TplOut="$(XDG_CONFIG_HOME="${TplHome}" zsh "${WebAPIBin}" template edit demo model=mistral-small 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: template edit exit code" "$?" "0"
+		local TplContent="$(<"${TplHome}/webapi/templates/demo.conf")"
+		test@webAPI:assert:true "E2E: template edit updated model" $([[ "$TplContent" == *"model=mistral-small"* ]] && echo 0 || echo 1)
+
+		TplOut="$(XDG_CONFIG_HOME="${TplHome}" zsh "${WebAPIBin}" template remove demo 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: template remove exit code" "$?" "0"
+		test@webAPI:assert:true "E2E: template file removed" $([[ ! -f "${TplHome}/webapi/templates/demo.conf" ]] && echo 0 || echo 1)
+
+		# Test events queueSize / clear / pause / resume / read
+		local EvRuntime="${TestTmpDir}/ev_runtime"
+		local EvOut
+		EvOut="$(XDG_RUNTIME_DIR="${EvRuntime}" zsh "${WebAPIBin}" events queueSize 25 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: events queueSize set" "$EvOut" "25"
+		EvOut="$(XDG_RUNTIME_DIR="${EvRuntime}" zsh "${WebAPIBin}" events queueSize 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: events queueSize get" "$EvOut" "25"
+
+		EvOut="$(XDG_RUNTIME_DIR="${EvRuntime}" zsh "${WebAPIBin}" events pause 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: events pause" "$EvOut" "Paused"
+		test@webAPI:assert:true "E2E: events paused marker created" $([[ -f "${EvRuntime}/webapi/events.paused" ]] && echo 0 || echo 1)
+
+		EvOut="$(XDG_RUNTIME_DIR="${EvRuntime}" zsh "${WebAPIBin}" events resume 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: events resume" "$EvOut" "Resumed"
+		test@webAPI:assert:true "E2E: events paused marker removed" $([[ ! -f "${EvRuntime}/webapi/events.paused" ]] && echo 0 || echo 1)
+
+		printf '{"id":1}\n{"id":2}\n' > "${EvRuntime}/webapi/events.ring"
+		EvOut="$(XDG_RUNTIME_DIR="${EvRuntime}" zsh "${WebAPIBin}" events read 1 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: events read 1" "$EvOut" '{"id":1}'
+		EvOut="$(XDG_RUNTIME_DIR="${EvRuntime}" zsh "${WebAPIBin}" events read 1 2>/dev/null)"
+		test@webAPI:assert:equal "E2E: events read next" "$EvOut" '{"id":2}'
+
+		XDG_RUNTIME_DIR="${EvRuntime}" zsh "${WebAPIBin}" events clear 2>/dev/null
+		test@webAPI:assert:equal "E2E: events clear exit code" "$?" "0"
+		test@webAPI:assert:true "E2E: events ring cleared" $([[ ! -s "${EvRuntime}/webapi/events.ring" ]] && echo 0 || echo 1)
+
+		# Test Help output contains generated patterns and examples
+		local HelpOut
+		HelpOut="$(zsh "${WebAPIBin}" Help 2>/dev/null)"
+		local HasPat=1 HasEx=1
+		[[ "$HelpOut" == *"Host([-_.]|)Addr"* ]] && HasPat=0
+		[[ "$HelpOut" == *"Examples:"* ]] && HasEx=0
+		test@webAPI:assert:true "E2E: Help output includes generated patterns" $HasPat
+		test@webAPI:assert:true "E2E: Help output includes examples" $HasEx
+
+		@print:pel "Test Summary"
+		print -P -- "Passed: %F{green}${PassCount}%f"
+		print -P -- "Failed: %F{red}${FailCount}%f"
+		print -P -- "Total:  $(( PassCount + FailCount ))"
+
+		(( FailCount > 0 )) && return 1 || return 0
+	} always {
+		rm -rf "${TestTmpDir}"
+		unfunction \
+			test@webAPI:assert:equal \
+			test@webAPI:assert:true \
+			test@webAPI:parse:configHierarchy \
+			test@webAPI:state:read \
+			2>/dev/null
+	}
+}
